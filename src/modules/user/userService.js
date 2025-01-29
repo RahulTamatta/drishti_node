@@ -42,7 +42,6 @@ const userLoginService = async (request) => {
       details["userId"] = user._id.toString();
     }
 
-    // Create new OTP record
     await OtpRecord.create({
       otp: otp,
       mobileNo: mobileNo,
@@ -65,6 +64,8 @@ const userLoginService = async (request) => {
     throw error;
   }
 };
+
+
 
 // const verifyOtp = async (request) => {
 //   const { otp, data, deviceToken } = request.body;

@@ -6,6 +6,7 @@ const httpStatus = require("../../common/utils/status.json");
 const uploadFilesToBucket = require("../../middleware/uploadTofireBase");
 const { response } = require("express");
 
+
 const userLoginController = async (request, response) => {
   try {
     const data = await userLoginService(request);
@@ -18,15 +19,14 @@ const userLoginController = async (request, response) => {
     createResponse(
       response,
       httpStatus.OK,
-      request.t("user.OTP_SENT_SUCCESSFULLY"),
+      request.t("user.USER_LOGGED_IN"),
       data
     );
   } catch (error) {
-    const status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
-    const message = error.message || request.t("user.UNABLE_TO_SEND_OTP");
-    createResponse(response, status, message);
+    createResponse(response, error.status, error.message);
   }
 };
+
 const verifyOtpController = async (request, response) => {
   try {
     const data = await userService.verifyOtp(request);
