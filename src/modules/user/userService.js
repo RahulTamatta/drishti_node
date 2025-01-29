@@ -16,46 +16,75 @@ function AddMinutesToDate(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }
 const userLoginService = async (request) => {
-  const { mobileNo, countryCode, type } = request.body;
-  let user = await User.findOne({
-    mobileNo: mobileNo,
-  });
+  try {
+    const { mobileNo, countryCode, type } = request.body;
+    
+    if (!mobileNo || !countryCode || !type) {
+      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
+    }
 
-  const otp = generateOTP();
-  const now = new Date();
-  const expiration_time = AddMinutesToDate(now, 10);
-  let details = {
-    otp: otp,
-    expiration_time: expiration_time,
-    mobile: mobileNo,
-    countryCode: countryCode,
-    type: type,
-  };
+    let user = await User.findOne({ mobileNo: mobileNo });
+    const otp = generateOTP();
+    const now = new Date();
+    const expiration_time = AddMinutesToDate(now, 10);
+    
+    // Check for existing OTP record
+    const existingOtp = await OtpRecord.findOne({
+      mobileNo: mobileNo,
+      expiration_time: { $gt: now }
+    });
 
-  if (user) {
-    details["userId"] = user._id.toString();
-  }
-  // hera store the otp for testing purpose
-  await OtpRecord.create({
-    otp: otp,
-    mobileNo: mobileNo,
-    countryCode: countryCode,
-    expiration_time: expiration_time,
-    type: type,
-  });
-  // hera store the otp for testing purpose
+    if (existingOtp) {
+      throw new appError(
+        httpStatus.CONFLICT, 
+        "An OTP is already active for this number"
+      );
+    }
 
-  if (mobileNo === "9766619238" || mobileNo === "9699224825") {
-    details.otp = "1111";
+    let details = {
+      otp: otp,
+      expiration_time: expiration_time,
+      mobile: mobileNo,
+      countryCode: countryCode,
+      type: type,
+    };
+
+    if (user) {
+      details["userId"] = user._id.toString();
+    }
+
+    await OtpRecord.create({
+      otp: otp,
+      mobileNo: mobileNo,
+      countryCode: countryCode,
+      expiration_time: expiration_time,
+      type: type,
+    });
+
+    // Test numbers handling
+    if (mobileNo === "9766619238" || mobileNo === "9699224825") {
+      details.otp = "1111";
+      return { data: await encode(JSON.stringify(details)) };
+    }
+
+    // Send SMS
+    try {
+      await sendSms(
+        countryCode + mobileNo,
+        `Drishti account verification OTP:${otp}`
+      );
+    } catch (error) {
+      throw new appError(
+        httpStatus.SERVICE_UNAVAILABLE, 
+        "Failed to send OTP"
+      );
+    }
+
     return { data: await encode(JSON.stringify(details)) };
+  } catch (error) {
+    throw error;
   }
-  await sendSms(
-    countryCode + mobileNo,
-    `Drishti account verification OTP:${otp}`
-  );
-  return { data: await encode(JSON.stringify(details)) };
 };
-
 
 // const verifyOtp = async (request) => {
 //   const { otp, data, deviceToken } = request.body;

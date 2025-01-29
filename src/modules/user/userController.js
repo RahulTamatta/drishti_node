@@ -9,12 +9,6 @@ const { response } = require("express");
 const userLoginController = async (request, response) => {
   try {
     const data = await userService.userLoginService(request);
-    if (!data) {
-      throw new appError(
-        httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_LOGIN")
-      );
-    }
     createResponse(
       response,
       httpStatus.OK,
@@ -22,10 +16,11 @@ const userLoginController = async (request, response) => {
       data
     );
   } catch (error) {
-    createResponse(response, error.status, error.message);
+    const status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
+    const message = error.message || request.t("user.UNABLE_TO_LOGIN");
+    createResponse(response, status, message);
   }
 };
-
 const verifyOtpController = async (request, response) => {
   try {
     const data = await userService.verifyOtp(request);
