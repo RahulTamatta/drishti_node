@@ -19,28 +19,18 @@ const userLoginService = async (request) => {
   try {
     const { mobileNo, countryCode, type } = request.body;
     
+    // Validate required fields
     if (!mobileNo || !countryCode || !type) {
-      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
+      throw new Error('Missing required fields');
     }
 
     let user = await User.findOne({ mobileNo: mobileNo });
+    
     const otp = generateOTP();
     const now = new Date();
     const expiration_time = AddMinutesToDate(now, 10);
-    
-    // Check for existing OTP record
-    const existingOtp = await OtpRecord.findOne({
-      mobileNo: mobileNo,
-      expiration_time: { $gt: now }
-    });
 
-    if (existingOtp) {
-      throw new appError(
-        httpStatus.CONFLICT, 
-        "An OTP is already active for this number"
-      );
-    }
-
+    // Create details object
     let details = {
       otp: otp,
       expiration_time: expiration_time,
@@ -53,6 +43,7 @@ const userLoginService = async (request) => {
       details["userId"] = user._id.toString();
     }
 
+    // Create OTP record
     await OtpRecord.create({
       otp: otp,
       mobileNo: mobileNo,
@@ -67,17 +58,14 @@ const userLoginService = async (request) => {
       return { data: await encode(JSON.stringify(details)) };
     }
 
-    // Send SMS
+    // Send SMS with proper error handling
     try {
       await sendSms(
         countryCode + mobileNo,
         `Drishti account verification OTP:${otp}`
       );
-    } catch (error) {
-      throw new appError(
-        httpStatus.SERVICE_UNAVAILABLE, 
-        "Failed to send OTP"
-      );
+    } catch (smsError) {
+      throw new Error('Failed to send OTP SMS');
     }
 
     return { data: await encode(JSON.stringify(details)) };
@@ -85,6 +73,7 @@ const userLoginService = async (request) => {
     throw error;
   }
 };
+
 
 // const verifyOtp = async (request) => {
 //   const { otp, data, deviceToken } = request.body;

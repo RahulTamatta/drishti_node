@@ -8,16 +8,22 @@ const { response } = require("express");
 
 const userLoginController = async (request, response) => {
   try {
-    const data = await userService.userLoginService(request);
+    const data = await userLoginService(request);
+    if (!data) {
+      throw new appError(
+        httpStatus.CONFLICT,
+        request.t("user.UNABLE_TO_LOGIN")
+      );
+    }
     createResponse(
       response,
       httpStatus.OK,
-      request.t("user.USER_LOGGED_IN"),
+      request.t("user.OTP_SENT_SUCCESSFULLY"),
       data
     );
   } catch (error) {
     const status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
-    const message = error.message || request.t("user.UNABLE_TO_LOGIN");
+    const message = error.message || request.t("user.UNABLE_TO_SEND_OTP");
     createResponse(response, status, message);
   }
 };
