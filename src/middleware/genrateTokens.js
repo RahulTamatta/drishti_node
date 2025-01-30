@@ -1,12 +1,12 @@
+
+// utils/tokenService.js
 const jwt = require('jsonwebtoken');
 
-// Set environment variables with standard expiration times
-process.env.JWT_ACCESS_EXPIRATION_MINUTES = 30;          // 30 minutes
-process.env.JWT_REFRESH_EXPIRATION_DAYS = 7;            // 7 days
-process.env.JWT_SECRET = 'your-secret-key';             // Replace with actual secret
+process.env.JWT_ACCESS_EXPIRATION_MINUTES = 30;
+process.env.JWT_REFRESH_EXPIRATION_DAYS = 7;
+process.env.JWT_SECRET = 'your-secret-key'; // Move to .env file
 
 const createToken = async (user) => {
-  // Calculate expiration dates
   const accessExpiration = new Date(
     Date.now() + process.env.JWT_ACCESS_EXPIRATION_MINUTES * 60000
   );
@@ -14,7 +14,6 @@ const createToken = async (user) => {
     Date.now() + process.env.JWT_REFRESH_EXPIRATION_DAYS * 86400000
   );
 
-  // Create access token with 30 minutes expiration
   const accessToken = jwt.sign(
     {
       id: user._id ? user._id : user.id,
@@ -23,11 +22,10 @@ const createToken = async (user) => {
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: '30m',  // 30 minutes
+      expiresIn: '30m',
     }
   );
 
-  // Create refresh token with 7 days expiration
   const refreshToken = jwt.sign(
     {
       id: user._id ? user._id : user.id,
@@ -36,7 +34,7 @@ const createToken = async (user) => {
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: '7d',   // 7 days
+      expiresIn: '7d',
     }
   );
 
@@ -50,12 +48,95 @@ const createToken = async (user) => {
   };
 };
 
-// Example usage
-const user = {
-  _id: '12345',
-  role: 'user'
+module.exports = {
+  createToken
 };
 
-createToken(user)
-  .then(tokens => console.log('Generated tokens:', tokens))
-  .catch(error => console.error('Error:', error));
+// const generateToken = async (request, response) => {
+//   try {
+//     const refreshToken = request.body.refreshtoken;
+//     if (!refreshToken) {
+//       return createResponse(
+//         response,
+//         status.UNAUTHORIZED,
+//         request.t("auth.NOT_VALID_TOKEN")
+//       );
+//     }
+
+//     return jwt.verify(
+//       refreshToken,
+//       process.env.JWT_SECRET,
+//       async function (error, decoded) {
+//         if (error) {
+//           if (error.message == "jwt expired") {
+//             return createResponse(
+//               response,
+//               status.UNAUTHORIZED,
+//               request.t("auth.TOKEN_EXPIRED")
+//             );
+//           } else {
+//             return createResponse(response, status.UNAUTHORIZED, error);
+//           }
+//         }
+//         const isUser = await User.findOne({
+//           _id: decoded.id,
+//           role: decoded.role,
+//         });
+//         if (isUser?.status === STATUS.DEACTIVE) {
+//           return createResponse(
+//             response,
+//             status.FORBIDDEN,
+//             request.t("user.DEACTIVE_ACCOUNT")
+//           );
+//         }
+//         if (isUser?.status === STATUS.DELETED) {
+//           return createResponse(
+//             response,
+//             status.GONE,
+//             request.t("user.ACCOUNT_DELETED")
+//           );
+//         }
+//         const user = await createToken(decoded);
+//         const tokens = {
+//           role: user.role,
+//           accessToken: user.accessToken,
+//           accessTokenExpire: user.accessTokenExpiresAt,
+//           refreshToken: user.refreshToken,
+//           refreshTokenExpire: user.refreshTokenExpiresAt,
+//         };
+//         return createResponse(
+//           response,
+//           status.OK,
+//           request.t("auth.NEW_ACCESS_TOKEN"),
+//           tokens
+//         );
+//       }
+//     );
+//   } catch (error) {
+//     const errorMessage = error.message || "Internal Server Error";
+//     const statusCode = error.status || status.INTERNAL_SERVER_ERROR;
+//     return createResponse(response, statusCode, errorMessage);
+//   }
+// };
+
+// const generateResetPasswordToken = (user) => {
+//   return jwt.sign({ user }, config.resetPassword.secret, {
+//     expiresIn: config.resetPassword.expiry + "h",
+//   });
+// };
+
+// const verifyResetPasswordToken = (token) => {
+//   try {
+//     const decoded = jwt.verify(token, config.resetPassword.secret);
+//     return { decoded, error: null };
+//   } catch (error) {
+//     return { decoded: null, error };
+//   }
+// };
+
+module.exports = {
+  createToken,
+  // generateResetPasswordToken,
+  // generateToken,
+  // verifyResetPasswordToken,
+};
