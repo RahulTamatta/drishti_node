@@ -1,4 +1,5 @@
-const userService = require("./userService");
+// const userService = require("./userService");
+const userService = require("./userService.js");
 const constants = require("../../common/utils/constants");
 const appError = require("../../common/utils/appError");
 const createResponse = require("../../common/utils/createResponse");
@@ -9,7 +10,7 @@ const { response } = require("express");
 
 const userLoginController = async (request, response) => {
   try {
-    const data = await userLoginService(request);
+    const data = await userService.userLoginService(request); // Access through userService
     if (!data) {
       throw new appError(
         httpStatus.CONFLICT,
@@ -26,7 +27,6 @@ const userLoginController = async (request, response) => {
     createResponse(response, error.status, error.message);
   }
 };
-
 const verifyOtpController = async (request, response) => {
   try {
     const data = await userService.verifyOtp(request);
