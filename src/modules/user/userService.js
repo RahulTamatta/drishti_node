@@ -73,11 +73,11 @@ const userLoginService = async (request) => {
 };
 
 const verifyOtp = async (request) => {
-  const { mobileNo, countryCode, otp, deviceToken } = request.body;
+  const { mobileNo, otp, deviceToken } = request.body; // Removed countryCode
 
   try {
-    // Validate input
-    if (!mobileNo || !countryCode || !otp) {
+    // Validate input (removed countryCode check)
+    if (!mobileNo || !otp) {
       throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
     }
 
@@ -86,8 +86,8 @@ const verifyOtp = async (request) => {
       throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 digits");
     }
 
-    // Format phone number correctly
-    const formattedNumber = `${countryCode.startsWith('+') ? countryCode : `+${countryCode}`}${mobileNo}`;
+    // Format phone number with international prefix
+    const formattedNumber = mobileNo.startsWith('+') ? mobileNo : `+${mobileNo}`;
 
     try {
       // Verify OTP using Twilio Verify API
@@ -99,18 +99,17 @@ const verifyOtp = async (request) => {
           code: otp 
         });
 
-      console.log('Verification Status:', verificationCheck.status); // Debug log
+      console.log('Verification Status:', verificationCheck.status);
 
       if (verificationCheck.status !== 'approved') {
         throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
       }
 
-      // Find or create user
+      // Find or create user (removed countryCode from creation)
       let user = await User.findOne({ mobileNo });
       if (!user) {
         user = await User.create({
           mobileNo,
-          countryCode,
           deviceTokens: deviceToken ? [deviceToken] : [],
         });
       } else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
@@ -162,7 +161,6 @@ const verifyOtp = async (request) => {
     );
   }
 };
-
 const updateLocation = async (request) => {
   const { lat, long, location } = request.body;
 
