@@ -5,84 +5,78 @@ const appError = require("../../common/utils/appError");
 const createResponse = require("../../common/utils/createResponse");
 const httpStatus = require("../../common/utils/status.json");
 const uploadFilesToBucket = require("../../middleware/uploadTofireBase");
-const Twilio = require('twilio');
-const OtpRecord = require('../../models/otp');
-const User = require('../../models/user');
+const { response } = require("express");
 
-const { createToken } = require("../../middleware/genrateTokens");
 
-// Initialize Twilio client
-const client = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-const userLoginService = async (request) => {
+
+const userLoginController = async (request, response) => {
   try {
-    const { mobileNo, countryCode } = request.body;
-
-    // Validate required fields
-    if (!mobileNo || !countryCode) {
-      throw new appError(httpStatus.BAD_REQUEST, "Mobile number and country code are required");
+    const data = await userService.userLoginService(request);
+    if (!data || !data.data) {
+      throw new appError(httpStatus.CONFLICT, "Authentication failed");
     }
-
-    // Check for recent OTP requests (30-second cooldown)
-    const lastOtpRecord = await OtpRecord.findOne({ mobileNo }).sort({ createdAt: -1 });
-    if (lastOtpRecord && (new Date() - lastOtpRecord.createdAt < 30000)) {
-      throw new appError(httpStatus.CONFLICT, "Please wait 30 seconds before requesting a new OTP.");
-    }
-
-    // Use Twilio Verify API to send OTP
-    const verification = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
-      .verifications
-      .create({ to: `${countryCode}${mobileNo}`, channel: 'sms' });
-
-    // Save OTP record for cooldown tracking
-    await OtpRecord.create({
-      mobileNo,
-      countryCode,
-      createdAt: new Date(),
-    });
-
-    return { data: { message: "OTP sent successfully" } };
+    createResponse(
+      response,
+      httpStatus.OK,
+      request.t("user.USER_LOGGED_IN"),
+      data
+    );
   } catch (error) {
-    if (error.status === 409) {
-      throw new appError(httpStatus.CONFLICT, "Please wait before requesting another OTP.");
+    console.error("Login error:", error);
+    let status = error.status || httpStatus.CONFLICT;
+    let message = error.message;
+
+    // Handle Twilio 409 Conflict error
+    if (error.message.includes("Conflict") || error.status === 409) {
+      status = httpStatus.CONFLICT;
+      message = "Please wait before requesting another OTP.";
     }
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send OTP");
+
+    createResponse(response, status, message);
   }
 };
 
-const verifyOtp = async (request) => {
-  const { mobileNo, countryCode, otp, deviceToken } = request.body;
-
+const verifyOtpController = async (request, response) => {
   try {
-    // Verify OTP using Twilio Verify API
-    const verificationCheck = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
-      .verificationChecks
-      .create({ to: `${countryCode}${mobileNo}`, code: otp });
-
-    if (verificationCheck.status !== 'approved') {
-      throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
+    const data = await userService.verifyOtp(request);
+    if (!data) {
+      throw new appError(httpStatus.CONFLICT, request.t("user.UNABLE_TO_LOGIN"));
     }
-
-    // Find or create user
-    let user = await User.findOne({ mobileNo });
-    if (!user) {
-      user = await User.create({
-        mobileNo,
-        countryCode,
-        deviceTokens: [deviceToken],
-      });
-    } else if (!user.deviceTokens.includes(deviceToken)) {
-      user.deviceTokens.push(deviceToken);
-      await user.save();
-    }
-
-    // Generate and return JWT token
-    return createToken(user);
+    createResponse(
+      response,
+      httpStatus.OK,
+      request.t("user.USER_LOGGED_IN"),
+      data
+    );
   } catch (error) {
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "OTP verification failed");
+    createResponse(response, error.status, error.message);
   }
 };
 
+// module.exports = {
+//   userLoginController,
+//   verifyOtpController,
+// };
+// const verifyOtpController = async (request, response) => {
+//   try {
+//     const data = await userService.verifyOtp(request);
+//     if (!data) {
+//       throw new appError(
+//         httpStatus.CONFLICT,
+//         request.t("user.UNABLE_TO_LOGIN")
+//       );
+//     }
+//     createResponse(
+//       response,
+//       httpStatus.OK,
+//       request.t("user.USER_LOGGED_IN"),
+//       data
+//     );
+//   } catch (error) {
+//     createResponse(response, error.status, error.message);
+//   }
+// };
 const updateLocationController = async (request, response) => {
   try {
     const data = await userService.updateLocation(request);
