@@ -39,10 +39,20 @@ const userLoginController = async (request, response) => {
 
 const verifyOtpController = async (request, response) => {
   try {
+    // Validate request body
+    if (!request.body || !request.body.otp || !request.body.mobileNo || !request.body.countryCode) {
+      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
+    }
+
+    // Call the service
     const data = await userService.verifyOtp(request);
+    
+    // Check if we got valid data back
     if (!data) {
       throw new appError(httpStatus.CONFLICT, request.t("user.UNABLE_TO_LOGIN"));
     }
+
+    // Success response
     createResponse(
       response,
       httpStatus.OK,
@@ -50,7 +60,25 @@ const verifyOtpController = async (request, response) => {
       data
     );
   } catch (error) {
-    createResponse(response, error.status, error.message);
+    // Log the error for debugging
+    console.error("OTP Verification Controller Error:", {
+      error: error.message,
+      stack: error.stack,
+      status: error.status,
+      body: request.body
+    });
+
+    // Determine appropriate status code
+    const status = error.status || httpStatus.INTERNAL_SERVER_ERROR;
+    
+    // Get appropriate error message
+    let message = error.message;
+    if (status === httpStatus.INTERNAL_SERVER_ERROR && !message) {
+      message = request.t("user.UNABLE_TO_LOGIN");
+    }
+
+    // Send error response
+    createResponse(response, status, message);
   }
 };
 

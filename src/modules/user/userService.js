@@ -71,36 +71,95 @@ const userLoginService = async (request) => {
     throw error;
   }
 };
+
 const verifyOtp = async (request) => {
   const { mobileNo, countryCode, otp, deviceToken } = request.body;
 
   try {
-    // Verify OTP using Twilio Verify API
-    const verificationCheck = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
-      .verificationChecks
-      .create({ to: `${countryCode}${mobileNo}`, code: otp });
-
-    if (verificationCheck.status !== 'approved') {
-      throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
+    // Validate input
+    if (!mobileNo || !countryCode || !otp) {
+      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
     }
 
-    // Find or create user
-    let user = await User.findOne({ mobileNo });
-    if (!user) {
-      user = await User.create({
-        mobileNo,
-        countryCode,
-        deviceTokens: [deviceToken],
-      });
-    } else if (!user.deviceTokens.includes(deviceToken)) {
-      user.deviceTokens.push(deviceToken);
-      await user.save();
+    // Validate OTP length
+    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+      throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 digits");
     }
 
-    // Generate and return JWT token
-    return createToken(user);
+    // Format phone number correctly
+    const formattedNumber = `${countryCode.startsWith('+') ? countryCode : `+${countryCode}`}${mobileNo}`;
+
+    try {
+      // Verify OTP using Twilio Verify API
+      const verificationCheck = await client.verify.v2
+        .services(process.env.TWILIO_VERIFY_SID)
+        .verificationChecks
+        .create({ 
+          to: formattedNumber, 
+          code: otp 
+        });
+
+      console.log('Verification Status:', verificationCheck.status); // Debug log
+
+      if (verificationCheck.status !== 'approved') {
+        throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
+      }
+
+      // Find or create user
+      let user = await User.findOne({ mobileNo });
+      if (!user) {
+        user = await User.create({
+          mobileNo,
+          countryCode,
+          deviceTokens: deviceToken ? [deviceToken] : [],
+        });
+      } else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
+        user.deviceTokens.push(deviceToken);
+        await user.save();
+      }
+
+      // Generate and return JWT token
+      const token = await createToken(user);
+      if (!token) {
+        throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to generate auth token");
+      }
+
+      return token;
+
+    } catch (twilioError) {
+      console.error('Twilio Verification Error:', twilioError);
+      
+      // Handle specific Twilio error codes
+      switch(twilioError.code) {
+        case 20404:
+          throw new appError(httpStatus.NOT_FOUND, "Verification code expired");
+        case 20001:
+          throw new appError(httpStatus.UNAUTHORIZED, "Invalid verification code");
+        case 60200:
+          throw new appError(httpStatus.BAD_REQUEST, "Invalid phone number format");
+        case 60202:
+          throw new appError(httpStatus.BAD_REQUEST, "Invalid verification code format");
+        case 60203:
+          throw new appError(httpStatus.TOO_MANY_REQUESTS, "Maximum verification attempts reached");
+        default:
+          throw new appError(
+            httpStatus.INTERNAL_SERVER_ERROR, 
+            "Verification failed: " + (twilioError.message || "Unknown error")
+          );
+      }
+    }
+
   } catch (error) {
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "OTP verification failed");
+    console.error('Verification Service Error:', error);
+    
+    if (error instanceof appError) {
+      throw error;
+    }
+    
+    throw new appError(
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Verification failed"
+    );
   }
 };
 
