@@ -15,14 +15,25 @@ const { request } = require("express");
 function AddMinutesToDate(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }
+
+
 const userLoginService = async (request) => {
   try {
     const { mobileNo, countryCode, type } = request.body;
+    
+    // Validate required fields
+    if (!mobileNo || !countryCode || !type) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        "Mobile number, country code and type are required"
+      );
+    }
+
     let user = await User.findOne({
       mobileNo: mobileNo,
     });
 
-    // First, delete any existing OTP records for this number
+    // Delete any existing OTP records
     await OtpRecord.deleteMany({
       mobileNo: mobileNo
     });
@@ -42,6 +53,7 @@ const userLoginService = async (request) => {
       details["userId"] = user._id.toString();
     }
 
+    // Create new OTP record
     await OtpRecord.create({
       otp: otp,
       mobileNo: mobileNo,
@@ -50,22 +62,32 @@ const userLoginService = async (request) => {
       type: type,
     });
 
+    // Test numbers
     if (mobileNo === "9766619238" || mobileNo === "9699224825") {
       details.otp = "1111";
       return { data: await encode(JSON.stringify(details)) };
     }
 
-    await sendSms(
-      countryCode + mobileNo,
-      `Drishti account verification OTP:${otp}`
-    );
+    try {
+      await sendSms(
+        countryCode + mobileNo,
+        `Drishti account verification OTP:${otp}`
+      );
+    } catch (smsError) {
+      throw new appError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to send OTP SMS"
+      );
+    }
+
     return { data: await encode(JSON.stringify(details)) };
   } catch (error) {
+    if (!error.status) {
+      error.status = httpStatus.CONFLICT;
+    }
     throw error;
   }
 };
-
-
 
 // const verifyOtp = async (request) => {
 //   const { otp, data, deviceToken } = request.body;

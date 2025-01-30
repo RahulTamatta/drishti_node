@@ -6,15 +6,13 @@ const createResponse = require("../../common/utils/createResponse");
 const httpStatus = require("../../common/utils/status.json");
 const uploadFilesToBucket = require("../../middleware/uploadTofireBase");
 const { response } = require("express");
-
-
 const userLoginController = async (request, response) => {
   try {
-    const data = await userService.userLoginService(request); // Access through userService
-    if (!data) {
+    const data = await userService.userLoginService(request);
+    if (!data || !data.data) {
       throw new appError(
         httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_LOGIN")
+        "Authentication failed"
       );
     }
     createResponse(
@@ -24,7 +22,12 @@ const userLoginController = async (request, response) => {
       data
     );
   } catch (error) {
-    createResponse(response, error.status, error.message);
+    console.error("Login error:", error);
+    createResponse(
+      response, 
+      error.status || httpStatus.CONFLICT, 
+      error.message || "Authentication failed"
+    );
   }
 };
 const verifyOtpController = async (request, response) => {
