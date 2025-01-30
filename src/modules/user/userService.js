@@ -86,9 +86,7 @@ const verifyOtp = async (request) => {
       throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 digits");
     }
 
-    // Format phone number with international prefix
     const formattedNumber = mobileNo.startsWith('+') ? mobileNo : `+${mobileNo}`;
-
     try {
       // Verify OTP using Twilio Verify API
       const verificationCheck = await client.verify.v2

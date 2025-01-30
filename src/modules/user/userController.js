@@ -53,13 +53,14 @@ const verifyOtpController = async (request, response) => {
     }
 
     // Call the service with CORRECT parameters
-    const result = await userService.verifyOtp(
-      otp.toString(), // Ensure OTP is a string
-      data,
-      deviceToken,
-      mobileNo
-    );
-
+    const result = await userService.verifyOtp({
+      body: {
+        otp: otp.toString(),
+        mobileNo,
+        deviceToken,
+        data
+      }
+    });
     // Check response
     if (!result) {
       throw new appError(httpStatus.CONFLICT, request.t("user.UNABLE_TO_LOGIN"));
