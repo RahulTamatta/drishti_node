@@ -19,7 +19,9 @@ function AddMinutesToDate(date, minutes) {
 }
 
 
-const client = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+const client = Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
 
 const userLoginService = async (request) => {
   try {
@@ -30,57 +32,41 @@ const userLoginService = async (request) => {
       throw new appError(httpStatus.BAD_REQUEST, "Mobile number and country code are required");
     }
 
-    // Validate countryCode format
-    if (!countryCode.startsWith('+')) {
-      throw new appError(httpStatus.BAD_REQUEST, "Country code must start with '+'");
-    }
-
-    // Check for recent OTP requests (30-second cooldown)
-    const lastOtpRecord = await OtpRecord.findOne({ mobileNo }).sort({ createdAt: -1 });
-    if (lastOtpRecord && (new Date() - lastOtpRecord.createdAt < 30000)) {
-      throw new appError(httpStatus.CONFLICT, "Please wait 30 seconds before requesting a new OTP.");
+    // Validate if TWILIO_VERIFY_SID exists
+    if (!process.env.TWILIO_VERIFY_SID) {
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Twilio Verify Service not configured");
     }
 
     // Use Twilio Verify API to send OTP
-    const verification = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
-      .verifications
-      .create({ 
-        to: `${countryCode}${mobileNo}`, 
-        channel: 'sms' 
+    try {
+      const verification = await client.verify.v2
+        .services(process.env.TWILIO_VERIFY_SID)
+        .verifications
+        .create({
+          to: `${countryCode}${mobileNo}`,
+          channel: 'sms'
+        });
+
+      // Save OTP record for cooldown tracking
+      await OtpRecord.create({
+        mobileNo,
+        countryCode,
+        createdAt: new Date(),
       });
 
-    // Save OTP record for cooldown tracking
-    await OtpRecord.create({
-      mobileNo,
-      countryCode,
-      createdAt: new Date(),
-    });
-
-    return { data: { message: "OTP sent successfully" } };
+      return { data: { message: "OTP sent successfully" } };
+    } catch (twilioError) {
+      console.error('Twilio API Error:', twilioError);
+      if (twilioError.code === 60200) {
+        throw new appError(httpStatus.BAD_REQUEST, "Invalid phone number format");
+      }
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send OTP: " + twilioError.message);
+    }
   } catch (error) {
-    console.error('Twilio Error:', error.message); // Log detailed error
-
-    // Handle Twilio API errors
-    if (error.code === 60200) {
-      throw new appError(httpStatus.BAD_REQUEST, "Invalid phone number format");
-    }
-    if (error.code === 20404) {
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Twilio service configuration error");
-    }
-    if (error.status === 429) {
-      throw new appError(httpStatus.TOO_MANY_REQUESTS, "Too many OTP requests. Please try again later.");
-    }
-    if (error.status === 409) {
-      throw new appError(httpStatus.CONFLICT, "Please wait before requesting another OTP.");
-    }
-
-    throw new appError(
-      httpStatus.INTERNAL_SERVER_ERROR, 
-      error.message || "Failed to send OTP"
-    );
+    console.error('Service Error:', error);
+    throw error;
   }
 };
-
 const verifyOtp = async (request) => {
   const { mobileNo, countryCode, otp, deviceToken } = request.body;
 
