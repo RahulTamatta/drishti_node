@@ -18,11 +18,11 @@ const otpSchema = new mongoose.Schema(
     },
     otp: {
       type: String,
-      required: true,
+//  required: true,
     },
     expiration_time: {
       type: Date,
-      required: true,
+//  required: true,
     },
     verified: {
       type: Boolean,
@@ -31,7 +31,7 @@ const otpSchema = new mongoose.Schema(
     purpose: {
       type: String,
       enum: ["login", "password_reset", "account_verification"],
-      required: true,
+//  required: true,
     },
     attempts: {
       type: Number,
