@@ -37,7 +37,7 @@ const userLoginService = async (request) => {
     }
 
     // Use Twilio Verify API to send OTP
-    const verification = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+    const verification = await client.verify.v2.services(process.env.TWILIO_ACCOUNT_SID)
       .verifications
       .create({ to: `${countryCode}${mobileNo}`, channel: 'sms' });
 
@@ -62,7 +62,7 @@ const verifyOtp = async (request) => {
 
   try {
     // Verify OTP using Twilio Verify API
-    const verificationCheck = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+    const verificationCheck = await client.verify.v2.services(process.env.TWILIO_ACCOUNT_SID)
       .verificationChecks
       .create({ to: `${countryCode}${mobileNo}`, code: otp });
 

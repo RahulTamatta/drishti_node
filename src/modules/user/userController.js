@@ -54,29 +54,6 @@ const verifyOtpController = async (request, response) => {
   }
 };
 
-// module.exports = {
-//   userLoginController,
-//   verifyOtpController,
-// };
-// const verifyOtpController = async (request, response) => {
-//   try {
-//     const data = await userService.verifyOtp(request);
-//     if (!data) {
-//       throw new appError(
-//         httpStatus.CONFLICT,
-//         request.t("user.UNABLE_TO_LOGIN")
-//       );
-//     }
-//     createResponse(
-//       response,
-//       httpStatus.OK,
-//       request.t("user.USER_LOGGED_IN"),
-//       data
-//     );
-//   } catch (error) {
-//     createResponse(response, error.status, error.message);
-//   }
-// };
 const updateLocationController = async (request, response) => {
   try {
     const data = await userService.updateLocation(request);
