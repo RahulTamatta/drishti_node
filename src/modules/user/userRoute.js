@@ -63,15 +63,8 @@ router
   .put([auth(ROLES.ALL), validate(updateLocationV)], updateLocationController)
   .all(methodNotAllowed);
 
-router
-  .route("/update/:userId")
-  .patch(updateUserController)
-  .all(methodNotAllowed)
-//   .get(auth(ROLES.ALL), getUser).all(methodNotAllowed);
-
-
-router.route("/").get(auth(ROLES.ALL), getUser).all(methodNotAllowed);
-
+  router.route("/").get(auth(ROLES.ALL), getUser); // GET /user
+  router.route("/:userId").patch(updateUserController); // PATCH /user/:userId
 router
   .route("/upload")
   .post(auth(ROLES.ALL), userUpload, addFiles)
