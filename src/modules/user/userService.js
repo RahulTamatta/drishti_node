@@ -20,8 +20,8 @@ function AddMinutesToDate(date, minutes) {
 
 
 
-const client = Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-
+// After (correct initialization)
+const client = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 const userLoginService = async (request) => {
   try {
@@ -39,11 +39,15 @@ const userLoginService = async (request) => {
 
     // Use Twilio Verify API to send OTP
     try {
+      const formattedNumber = `${
+        countryCode.startsWith('+') ? countryCode : `+${countryCode}`
+      }${mobileNo}`;
+      
       const verification = await client.verify.v2
         .services(process.env.TWILIO_VERIFY_SID)
         .verifications
         .create({
-          to: `${countryCode}${mobileNo}`,
+          to: formattedNumber,
           channel: 'sms'
         });
 
