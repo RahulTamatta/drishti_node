@@ -44,11 +44,24 @@ const verifyOtpController = async (request, response) => {
       throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
     }
 
-    // Call the service
-    const data = await userService.verifyOtp(request);
-    
-    // Check if we got valid data back
-    if (!data) {
+    // Extract fields from request body
+    const { otp, mobileNo, data, deviceToken } = request.body;
+
+    // Ensure OTP is a 6-digit string
+    if (otp.toString().length !== 6) {
+      throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 digits");
+    }
+
+    // Call the service with CORRECT parameters
+    const result = await userService.verifyOtp(
+      otp.toString(), // Ensure OTP is a string
+      data,
+      deviceToken,
+      mobileNo
+    );
+
+    // Check response
+    if (!result) {
       throw new appError(httpStatus.CONFLICT, request.t("user.UNABLE_TO_LOGIN"));
     }
 
@@ -57,8 +70,9 @@ const verifyOtpController = async (request, response) => {
       response,
       httpStatus.OK,
       request.t("user.USER_LOGGED_IN"),
-      data
+      result
     );
+
   } catch (error) {
     // Log the error for debugging
     console.error("OTP Verification Controller Error:", {
