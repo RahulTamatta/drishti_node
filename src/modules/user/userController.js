@@ -40,7 +40,7 @@ const userLoginController = async (request, response) => {
 const verifyOtpController = async (request, response) => {
   try {
     // Validate request body
-    if (!request.body || !request.body.otp || !request.body.mobileNo || !request.body.countryCode) {
+    if (!request.body || !request.body.otp || !request.body.mobileNo) {
       throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
     }
 
