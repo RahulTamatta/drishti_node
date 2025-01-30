@@ -11,56 +11,233 @@ const constants = require("../../common/utils/constants");
 const sendSms = require("../../common/utils/messageService");
 const OtpRecord = require('../../models/otp');
 const { request } = require("express");
+const Twilio = require('twilio');
+
 
 function AddMinutesToDate(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }
 
 
-const userLoginController = async (request, response) => {
+const client = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+const userLoginService = async (request) => {
   try {
-    const data = await userService.userLoginService(request);
-    if (!data || !data.data) {
-      throw new appError(httpStatus.CONFLICT, "Authentication failed");
+    const { mobileNo, countryCode } = request.body;
+
+    // Validate required fields
+    if (!mobileNo || !countryCode) {
+      throw new appError(httpStatus.BAD_REQUEST, "Mobile number and country code are required");
     }
-    createResponse(
-      response,
-      httpStatus.OK,
-      request.t("user.USER_LOGGED_IN"),
-      data
-    );
+
+    // Check for recent OTP requests (30-second cooldown)
+    const lastOtpRecord = await OtpRecord.findOne({ mobileNo }).sort({ createdAt: -1 });
+    if (lastOtpRecord && (new Date() - lastOtpRecord.createdAt < 30000)) {
+      throw new appError(httpStatus.CONFLICT, "Please wait 30 seconds before requesting a new OTP.");
+    }
+
+    // Use Twilio Verify API to send OTP
+    const verification = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+      .verifications
+      .create({ to: `${countryCode}${mobileNo}`, channel: 'sms' });
+
+    // Save OTP record for cooldown tracking
+    await OtpRecord.create({
+      mobileNo,
+      countryCode,
+      createdAt: new Date(),
+    });
+
+    return { data: { message: "OTP sent successfully" } };
   } catch (error) {
-    console.error("Login error:", error);
-    let status = error.status || httpStatus.CONFLICT;
-    let message = error.message;
-
-    // Handle Twilio 409 Conflict error
-    if (error.message.includes("Conflict") || error.status === 409) {
-      status = httpStatus.CONFLICT;
-      message = "Please wait before requesting another OTP.";
+    if (error.status === 409) {
+      throw new appError(httpStatus.CONFLICT, "Please wait before requesting another OTP.");
     }
-
-    createResponse(response, status, message);
+    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send OTP");
   }
 };
 
-const verifyOtpController = async (request, response) => {
+const verifyOtp = async (request) => {
+  const { mobileNo, countryCode, otp, deviceToken } = request.body;
+
   try {
-    const data = await userService.verifyOtp(request);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT, request.t("user.UNABLE_TO_LOGIN"));
+    // Verify OTP using Twilio Verify API
+    const verificationCheck = await client.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+      .verificationChecks
+      .create({ to: `${countryCode}${mobileNo}`, code: otp });
+
+    if (verificationCheck.status !== 'approved') {
+      throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
     }
-    createResponse(
-      response,
-      httpStatus.OK,
-      request.t("user.USER_LOGGED_IN"),
-      data
-    );
+
+    // Find or create user
+    let user = await User.findOne({ mobileNo });
+    if (!user) {
+      user = await User.create({
+        mobileNo,
+        countryCode,
+        deviceTokens: [deviceToken],
+      });
+    } else if (!user.deviceTokens.includes(deviceToken)) {
+      user.deviceTokens.push(deviceToken);
+      await user.save();
+    }
+
+    // Generate and return JWT token
+    return createToken(user);
   } catch (error) {
-    createResponse(response, error.status, error.message);
+    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "OTP verification failed");
   }
 };
 
+
+
+// const verifyOtp = async (request) => {
+//   const { otp, data, deviceToken } = request.body;
+//   const decoded = await decode(data);
+//   const decodedObj = JSON.parse(decoded);
+//   const expirationTime = new Date(decodedObj.expiration_time);
+//   const currentTime = new Date();
+//   if (expirationTime > currentTime) {
+//     if (Number(decodedObj.otp) === otp) {
+//       let user;
+//       if (!decodedObj.userId) {
+//         user = await User.create({
+//           mobileNo: decodedObj.mobile,
+//           countryCode: decodedObj.countryCode,
+//           deviceTokens: deviceToken,
+//           userName: decodedObj.userName || `user_${decodedObj.mobile}`
+//         });
+//       }
+//       if (decodedObj.userId) {
+//         user = await User.findById(decodedObj.userId);
+//         if (!user.deviceTokens.includes(deviceToken)) {
+//           user = await User.findByIdAndUpdate(
+//             user._id,
+//             {
+//               $push: {
+//                 deviceTokens: deviceToken,
+//               },
+//             },
+//             { new: true }
+//           );
+//         }
+//       }
+//       return createToken(user);
+//     } else {
+//       throw new appError(httpStatus.CONFLICT, request.t("user.INCORRECT_OTP"));
+//     }
+//   } else {
+//     throw new appError(httpStatus.CONFLICT, request.t("user.OTP_EXPIRED"));
+//   }
+// };
+
+// const verifyOtp = async (request) => {
+//   const { otp, data, deviceToken } = request.body;
+//   const decoded = await decode(data);
+//   const decodedObj = JSON.parse(decoded);
+//   const expirationTime = new Date(decodedObj.expiration_time);
+//   const currentTime = new Date();
+
+//   if (expirationTime <= currentTime) {
+//     throw new appError(httpStatus.CONFLICT, request.t("user.OTP_EXPIRED"));
+//   }
+//   if (Number(decodedObj.otp) !== otp) {
+//     throw new appError(httpStatus.CONFLICT, request.t("user.INCORRECT_OTP"));
+//   }
+//   let user;
+//   if (!decodedObj.userId) {
+//     // Check if user already exists by mobile number
+//     user = await User.findOne({ mobileNo: decodedObj.mobile });
+//     if (!user) {
+//       // Create new user only if doesn't exist
+//       try {
+//         user = await User.create({
+//           mobileNo: decodedObj.mobile,
+//           countryCode: decodedObj.countryCode,
+//           deviceTokens: [deviceToken], // Initialize with device token
+//           userName: decodedObj.userName || `user_${decodedObj.mobile}`,
+
+//         });
+//         console.log(user.userName)
+//       } catch (error) {
+//         throw new appError(httpStatus.BAD_REQUEST, "Error creating user: " + error.message);
+//       }
+//     }
+//   } else {
+//     user = await User.findById(decodedObj.userId);
+//     if (!user.deviceTokens.includes(deviceToken)) {
+//       user = await User.findByIdAndUpdate(
+//         user._id,
+//         {
+//           $push: {
+//             deviceTokens: deviceToken,
+//           },
+//         },
+//         { new: true }
+//       );
+//     }
+//   }
+
+//   return createToken(user);
+// };
+
+
+// const verifyOtp = async (request) => {
+//   const { otp, data, deviceToken } = request.body;
+//   const decoded = await decode(data);
+//   const decodedObj = JSON.parse(decoded);
+//   const expirationTime = new Date(decodedObj.expiration_time);
+//   const currentTime = new Date();
+
+//   if (expirationTime <= currentTime) {
+//     throw new appError(httpStatus.CONFLICT, request.t("user.OTP_EXPIRED"));
+//   }
+//   if (Number(decodedObj.otp) !== otp) {
+//     throw new appError(httpStatus.CONFLICT, request.t("user.INCORRECT_OTP"));
+//   }
+
+//   let user;
+//   if (!decodedObj.userId) {
+//     // Check if user already exists by mobile number
+//     user = await User.findOne({ mobileNo: decodedObj.mobile });
+//     if (!user) {
+//       // Create new user only if doesn't exist
+//       try {
+//         // Generate userName only if it is null
+//         const userName = decodedObj.userName || `user_${decodedObj.mobile}`;
+//         if (!userName) {
+//           throw new appError(httpStatus.BAD_REQUEST, "User name cannot be null.");
+//         }
+
+//         user = await User.create({
+//           mobileNo: decodedObj.mobile,
+//           countryCode: decodedObj.countryCode,
+//           deviceTokens: [deviceToken], // Initialize with device token
+//           userName: userName,
+//         });
+//         console.log(user.userName);
+//       } catch (error) {
+//         throw new appError(httpStatus.BAD_REQUEST, "Error creating user: " + error.message);
+//       }
+//     }
+//   } else {
+//     user = await User.findById(decodedObj.userId);
+//     if (!user.deviceTokens.includes(deviceToken)) {
+//       user = await User.findByIdAndUpdate(
+//         user._id,
+//         {
+//           $push: {
+//             deviceTokens: deviceToken,
+//           },
+//         },
+//         { new: true }
+//       );
+//     }
+//   }
+
+//   return createToken(user);
+// };
 
 
 const updateLocation = async (request) => {
