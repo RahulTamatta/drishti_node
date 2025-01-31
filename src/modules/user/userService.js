@@ -79,7 +79,6 @@ const userLoginService = async (request) => {
 const verifyOtp = async (request) => {
   const { mobileNo, otp, deviceToken } = request.body;
 
-
   try {
     // 1. Validate required fields
     if (!mobileNo || !otp) {
@@ -99,7 +98,6 @@ const verifyOtp = async (request) => {
       );
     }
 
-
     // 4. Force E.164 format for Twilio
     const twilioPhoneNumber = `+91${mobileNo}`;
 
@@ -118,14 +116,14 @@ const verifyOtp = async (request) => {
 
     // 7. Find/Create user
     let user = await User.findOne({ mobileNo });
-    
+
     // New user creation
     if (!user) {
       user = await User.create({
         mobileNo,
         deviceTokens: deviceToken ? [deviceToken] : [],
       });
-    } 
+    }
     // Existing user - update device token
     else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
       user.deviceTokens.push(deviceToken);
@@ -133,21 +131,33 @@ const verifyOtp = async (request) => {
     }
 
     // 8. Generate JWT
-    const token = createToken(user); // Implement your JWT generation
-    
-    if (!token) {
+    const tokenData = await createToken(user); // Await the token generation
+
+    if (!tokenData?.accessToken) {
       throw new appError(
         httpStatus.INTERNAL_SERVER_ERROR,
         "Authentication token generation failed"
       );
     }
 
+    // 9. Return structured response
     return {
       success: true,
-      token,
-      user: {
-        mobileNo: user.mobileNo,
-        id: user._id
+      message: "OTP verified successfully",
+      data: {
+        role: user.role,
+        accessToken: tokenData.accessToken,
+        accessTokenExpiresAt: tokenData.accessTokenExpiresAt,
+        refreshToken: tokenData.refreshToken,
+        refreshTokenExpiresAt: tokenData.refreshTokenExpiresAt,
+        user: {
+          _id: user._id,
+          mobileNo: user.mobileNo,
+          role: user.role,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          // Add other required user fields
+        }
       }
     };
 
