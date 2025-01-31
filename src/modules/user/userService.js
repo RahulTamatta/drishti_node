@@ -130,17 +130,16 @@ const verifyOtp = async (request) => {
       await user.save();
     }
 
-    // 8. Generate JWT
+    // 8. Generate JWT and ensure it exists
     const tokenData = await createToken(user);
-
-    if (!tokenData?.accessToken) {
+    if (!tokenData || !tokenData.accessToken) {
       throw new appError(
         httpStatus.INTERNAL_SERVER_ERROR,
-        "Authentication token generation failed"
+        "Failed to generate authentication token"
       );
     }
 
-    // 9. Return structured response matching frontend expectations
+    // 9. Return response with guaranteed token data
     return {
       success: true,
       message: "OTP verified successfully",
@@ -162,7 +161,7 @@ const verifyOtp = async (request) => {
 
   } catch (error) {
     // Handle Twilio errors
-    if (error.code && error.code === 60200) {
+    if (error.code === 60200) {
       throw new appError(
         httpStatus.BAD_REQUEST,
         "Invalid phone number format. Contact support."
