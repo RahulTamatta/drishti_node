@@ -66,95 +66,96 @@ const createToken = async (user) => {
   return tokenData;
 };
 
-module.exports = {
-  createToken,
+// module.exports = {
+//   createToken,
+//   generateToken,
+// };
+
+const generateToken = async (request, response) => {
+  try {
+    const refreshToken = request.body.refreshtoken;
+    if (!refreshToken) {
+      return createResponse(
+        response,
+        status.UNAUTHORIZED,
+        request.t("auth.NOT_VALID_TOKEN")
+      );
+    }
+
+    return jwt.verify(
+      refreshToken,
+      process.env.JWT_SECRET,
+      async function (error, decoded) {
+        if (error) {
+          if (error.message == "jwt expired") {
+            return createResponse(
+              response,
+              status.UNAUTHORIZED,
+              request.t("auth.TOKEN_EXPIRED")
+            );
+          } else {
+            return createResponse(response, status.UNAUTHORIZED, error);
+          }
+        }
+        const isUser = await User.findOne({
+          _id: decoded.id,
+          role: decoded.role,
+        });
+        if (isUser?.status === STATUS.DEACTIVE) {
+          return createResponse(
+            response,
+            status.FORBIDDEN,
+            request.t("user.DEACTIVE_ACCOUNT")
+          );
+        }
+        if (isUser?.status === STATUS.DELETED) {
+          return createResponse(
+            response,
+            status.GONE,
+            request.t("user.ACCOUNT_DELETED")
+          );
+        }
+        const user = await createToken(decoded);
+        const tokens = {
+          role: user.role,
+          accessToken: user.accessToken,
+          accessTokenExpire: user.accessTokenExpiresAt,
+          refreshToken: user.refreshToken,
+          refreshTokenExpire: user.refreshTokenExpiresAt,
+        };
+        return createResponse(
+          response,
+          status.OK,
+          request.t("auth.NEW_ACCESS_TOKEN"),
+          tokens
+        );
+      }
+    );
+  } catch (error) {
+    const errorMessage = error.message || "Internal Server Error";
+    const statusCode = error.status || status.INTERNAL_SERVER_ERROR;
+    return createResponse(response, statusCode, errorMessage);
+  }
 };
 
-// const generateToken = async (request, response) => {
-//   try {
-//     const refreshToken = request.body.refreshtoken;
-//     if (!refreshToken) {
-//       return createResponse(
-//         response,
-//         status.UNAUTHORIZED,
-//         request.t("auth.NOT_VALID_TOKEN")
-//       );
-//     }
+const generateResetPasswordToken = (user) => {
+  return jwt.sign({ user }, config.resetPassword.secret, {
+    expiresIn: config.resetPassword.expiry + "h",
+  });
+};
 
-//     return jwt.verify(
-//       refreshToken,
-//       process.env.JWT_SECRET,
-//       async function (error, decoded) {
-//         if (error) {
-//           if (error.message == "jwt expired") {
-//             return createResponse(
-//               response,
-//               status.UNAUTHORIZED,
-//               request.t("auth.TOKEN_EXPIRED")
-//             );
-//           } else {
-//             return createResponse(response, status.UNAUTHORIZED, error);
-//           }
-//         }
-//         const isUser = await User.findOne({
-//           _id: decoded.id,
-//           role: decoded.role,
-//         });
-//         if (isUser?.status === STATUS.DEACTIVE) {
-//           return createResponse(
-//             response,
-//             status.FORBIDDEN,
-//             request.t("user.DEACTIVE_ACCOUNT")
-//           );
-//         }
-//         if (isUser?.status === STATUS.DELETED) {
-//           return createResponse(
-//             response,
-//             status.GONE,
-//             request.t("user.ACCOUNT_DELETED")
-//           );
-//         }
-//         const user = await createToken(decoded);
-//         const tokens = {
-//           role: user.role,
-//           accessToken: user.accessToken,
-//           accessTokenExpire: user.accessTokenExpiresAt,
-//           refreshToken: user.refreshToken,
-//           refreshTokenExpire: user.refreshTokenExpiresAt,
-//         };
-//         return createResponse(
-//           response,
-//           status.OK,
-//           request.t("auth.NEW_ACCESS_TOKEN"),
-//           tokens
-//         );
-//       }
-//     );
-//   } catch (error) {
-//     const errorMessage = error.message || "Internal Server Error";
-//     const statusCode = error.status || status.INTERNAL_SERVER_ERROR;
-//     return createResponse(response, statusCode, errorMessage);
-//   }
-// };
-
-// const generateResetPasswordToken = (user) => {
-//   return jwt.sign({ user }, config.resetPassword.secret, {
-//     expiresIn: config.resetPassword.expiry + "h",
-//   });
-// };
-
-// const verifyResetPasswordToken = (token) => {
-//   try {
-//     const decoded = jwt.verify(token, config.resetPassword.secret);
-//     return { decoded, error: null };
-//   } catch (error) {
-//     return { decoded: null, error };
-//   }
-// };
+const verifyResetPasswordToken = (token) => {
+  try {
+    const decoded = jwt.verify(token, config.resetPassword.secret);
+    return { decoded, error: null };
+  } catch (error) {
+    return { decoded: null, error };
+  }
+};
 
 module.exports = {
   createToken,
   // generateResetPasswordToken,
-  // generateToken,
+  generateToken,
   // verifyResetPasswordToken,
 };
