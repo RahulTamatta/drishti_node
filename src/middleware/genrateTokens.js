@@ -2,11 +2,15 @@
 // utils/tokenService.js
 const jwt = require('jsonwebtoken');
 
+// Environment variables for token expiration and secret
 process.env.JWT_ACCESS_EXPIRATION_MINUTES = 30;
 process.env.JWT_REFRESH_EXPIRATION_DAYS = 7;
-process.env.JWT_SECRET = 'your-secret-key'; // Move to .env file
+process.env.JWT_SECRET = 'sdkfjsdfklsjfejrfisdldskfvjdlkcnldskfjsklfjsdkjfckvncvnlnkln'; // Move to .env file
 
 const createToken = async (user) => {
+  console.debug('[DEBUG] Creating tokens for user:', user);
+
+  // Calculate token expiration dates
   const accessExpiration = new Date(
     Date.now() + process.env.JWT_ACCESS_EXPIRATION_MINUTES * 60000
   );
@@ -14,11 +18,15 @@ const createToken = async (user) => {
     Date.now() + process.env.JWT_REFRESH_EXPIRATION_DAYS * 86400000
   );
 
+  console.debug('[DEBUG] Access token expiration:', accessExpiration);
+  console.debug('[DEBUG] Refresh token expiration:', refreshExpiration);
+
+  // Generate access token
   const accessToken = jwt.sign(
     {
       id: user._id ? user._id : user.id,
       role: user.role,
-      type: 'access'
+      type: 'access',
     },
     process.env.JWT_SECRET,
     {
@@ -26,11 +34,14 @@ const createToken = async (user) => {
     }
   );
 
+  console.debug('[DEBUG] Access token generated:', accessToken);
+
+  // Generate refresh token
   const refreshToken = jwt.sign(
     {
       id: user._id ? user._id : user.id,
       role: user.role,
-      type: 'refresh'
+      type: 'refresh',
     },
     process.env.JWT_SECRET,
     {
@@ -38,7 +49,10 @@ const createToken = async (user) => {
     }
   );
 
-  return {
+  console.debug('[DEBUG] Refresh token generated:', refreshToken);
+
+  // Return token details
+  const tokenData = {
     role: user.role,
     accessToken,
     accessTokenExpiresAt: accessExpiration,
@@ -46,10 +60,14 @@ const createToken = async (user) => {
     refreshTokenExpiresAt: refreshExpiration,
     user,
   };
+
+  console.debug('[DEBUG] Token data to be returned:', tokenData);
+
+  return tokenData;
 };
 
 module.exports = {
-  createToken
+  createToken,
 };
 
 // const generateToken = async (request, response) => {
