@@ -131,7 +131,7 @@ const verifyOtp = async (request) => {
     }
 
     // 8. Generate JWT
-    const tokenData = await createToken(user); // Await the token generation
+    const tokenData = await createToken(user);
 
     if (!tokenData?.accessToken) {
       throw new appError(
@@ -140,23 +140,22 @@ const verifyOtp = async (request) => {
       );
     }
 
-    // 9. Return structured response
+    // 9. Return structured response matching frontend expectations
     return {
       success: true,
       message: "OTP verified successfully",
       data: {
         role: user.role,
         accessToken: tokenData.accessToken,
-        accessTokenExpiresAt: tokenData.accessTokenExpiresAt,
+        accessTokenExpiresAt: tokenData.accessTokenExpiresAt.toISOString(),
         refreshToken: tokenData.refreshToken,
-        refreshTokenExpiresAt: tokenData.refreshTokenExpiresAt,
+        refreshTokenExpiresAt: tokenData.refreshTokenExpiresAt.toISOString(),
         user: {
           _id: user._id,
           mobileNo: user.mobileNo,
           role: user.role,
           createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          // Add other required user fields
+          updatedAt: user.updatedAt
         }
       }
     };
