@@ -79,13 +79,19 @@ const userLoginService = async (request) => {
 const verifyOtp = async (request) => {
   const { mobileNo, otp, deviceToken } = request.body;
 
+
   try {
     // 1. Validate required fields
     if (!mobileNo || !otp) {
       throw new appError(httpStatus.BAD_REQUEST, "Mobile number and OTP are required");
     }
 
-    // 2. Validate Indian phone number format (10 digits without country code)
+    // 2. Validate OTP format (6-digit string)
+    if (!/^\d{6}$/.test(otp)) {
+      throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 numeric digits");
+    }
+
+    // 3. Validate Indian phone number format
     if (!/^\d{10}$/.test(mobileNo)) {
       throw new appError(
         httpStatus.BAD_REQUEST,
@@ -93,10 +99,6 @@ const verifyOtp = async (request) => {
       );
     }
 
-    // 3. Validate OTP format (6 digits)
-    if (!/^\d{6}$/.test(otp)) {
-      throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 numeric digits");
-    }
 
     // 4. Force E.164 format for Twilio
     const twilioPhoneNumber = `+91${mobileNo}`;

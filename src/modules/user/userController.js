@@ -44,18 +44,19 @@ const verifyOtpController = async (request, response) => {
       throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
     }
 
-    // Extract fields from request body
-    const { otp, mobileNo, data, deviceToken } = request.body;
+    // Extract and convert OTP to string
+    const { mobileNo, data, deviceToken } = request.body;
+    const otp = String(request.body.otp); // Force OTP to be a string
 
-    // Ensure OTP is a 6-digit string
-    if (otp.toString().length !== 6) {
+    // Validate OTP length (6 digits)
+    if (otp.length !== 6) {
       throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 digits");
     }
 
     // Call the service with CORRECT parameters
     const result = await userService.verifyOtp({
       body: {
-        otp: otp.toString(),
+        otp, // Pass as string
         mobileNo,
         deviceToken,
         data
