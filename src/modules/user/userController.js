@@ -118,24 +118,243 @@ const updateLocationController = async (request, response) => {
   }
 };
 
+// 1. First, let's fix the controller with proper error handling
 const onBoardUserController = async (request, response) => {
   try {
-    const data = await userService.onBoardUser(request);
-    if (!data) {
-      throw new appError(
-        httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_ONBOARD_USER")
-      );
+    // Validate request body
+    if (!request.body) {
+      throw new appError(httpStatus.BAD_REQUEST, "Request body is required");
     }
-    createResponse(
+
+    // Log incoming request for debugging
+    console.log("OnBoard Request:", {
+      body: request.body,
+      files: request.files,
+      userId: request.user?.id
+    });
+
+    // Validate user authentication
+    if (!request.user?.id) {
+      throw new appError(httpStatus.UNAUTHORIZED, "User not authenticated");
+    }
+
+    const data = await userService.onBoardUser(request);
+    
+    return createResponse(
       response,
       httpStatus.OK,
-      request.t("user.USER_ONBOARDED"),
+      "User onboarded successfully",
       data
     );
+
   } catch (error) {
-    console.log("error------", error);
-    createResponse(response, error.status, error.message);
+    console.error("OnBoard Error:", {
+      message: error.message,
+      stack: error.stack,
+      status: error.status
+    });
+
+    // Handle different types of errors
+    if (error instanceof appError) {
+      return createResponse(response, error.status, error.message);
+    }
+
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      return createResponse(
+        response,
+        httpStatus.BAD_REQUEST,
+        Object.values(error.errors).map(err => err.message).join(', ')
+      );
+    }
+
+    // Handle file upload errors
+    if (error.code === 'LIMIT_FILE_SIZE' || error.code === 'LIMIT_UNEXPECTED_FILE') {
+      return createResponse(
+        response,
+        httpStatus.BAD_REQUEST,
+        "File upload error: " + error.message
+      );
+    }
+
+    return createResponse(
+      response,
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Internal server error"
+    );
+  }
+};
+
+// 2. Improve the onBoardUser service
+const onBoardUser = async (request) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { name, email, userName, mobileNo, bio, teacherId, role } = request.body;
+
+    // Validate required fields
+    const requiredFields = ['name', 'email', 'userName', 'mobileNo'];
+    const missingFields = requiredFields.filter(field => !request.body[field]);
+    if (missingFields.length > 0) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        `Missing required fields: ${missingFields.join(', ')}`
+      );
+    }
+
+    // Safely handle file paths
+    const profileImg = request.files?.profileImage?.[0]?.location || "";
+    const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
+
+    // Validate and normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      throw new appError(httpStatus.BAD_REQUEST, "Invalid email format");
+    }
+
+    // Check existing user with email or username
+    const existingUser = await User.findOne({
+      $and: [
+        { _id: { $ne: request.user.id } },
+        {
+          $or: [
+            { email: normalizedEmail },
+            { userName: userName.trim() }
+          ]
+        }
+      ]
+    }).session(session);
+
+    if (existingUser) {
+      const errorMessage = existingUser.email === normalizedEmail 
+        ? "Email already exists"
+        : "Username already exists";
+      throw new appError(httpStatus.CONFLICT, errorMessage);
+    }
+
+    // Prepare update data
+    const updateData = {
+      name: name.trim(),
+      email: normalizedEmail,
+      userName: userName.trim(),
+      mobileNo,
+      profileImage: profileImg,
+      isOnboarded: true,
+      bio: bio?.trim(),
+      role: role === ROLES.TEACHER ? ROLES.TEACHER : ROLES.USER
+    };
+
+    // Add teacher-specific fields
+    if (role === ROLES.TEACHER) {
+      if (!teacherId || !teacherIdCard) {
+        throw new appError(
+          httpStatus.BAD_REQUEST,
+          "Teacher ID and ID card are required for teacher role"
+        );
+      }
+      updateData.teacherIdCard = teacherIdCard;
+      updateData.teacherId = teacherId;
+    }
+
+    // Update user with transaction
+    const updatedUser = await User.findByIdAndUpdate(
+      request.user.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+        session
+      }
+    );
+
+    if (!updatedUser) {
+      throw new appError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    await session.commitTransaction();
+    return updatedUser;
+
+  } catch (error) {
+    await session.abortTransaction();
+
+    // Clean up uploaded files if there's an error
+    if (Object.keys(request.files || {}).length > 0) {
+      try {
+        const filesToDelete = [
+          request.files?.teacherIdCard?.[0]?.location,
+          request.files?.profileImage?.[0]?.location
+        ].filter(Boolean);
+        
+        await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
+      } catch (cleanupError) {
+        console.error('File cleanup error:', cleanupError);
+      }
+    }
+
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+// 3. Create a validation middleware
+const validateOnboardRequest = (req, res, next) => {
+  try {
+    const { name, email, userName, mobileNo, role } = req.body;
+
+    // Check required fields
+    if (!name || !email || !userName || !mobileNo) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Missing required fields"
+      );
+    }
+
+    // Validate email format
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid email format"
+      );
+    }
+
+    // Validate mobile number
+    if (!mobileNo.match(/^\d{10}$/)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid mobile number format"
+      );
+    }
+
+    // Validate username
+    if (!userName.match(/^[a-zA-Z0-9_]{3,30}$/)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid username format. Use 3-30 characters, alphanumeric and underscore only"
+      );
+    }
+
+    // Validate role if provided
+    if (role && !Object.values(ROLES).includes(role)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid role specified"
+      );
+    }
+
+    next();
+  } catch (error) {
+    return createResponse(
+      res,
+      httpStatus.BAD_REQUEST,
+      "Invalid request data"
+    );
   }
 };
 
