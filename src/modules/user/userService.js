@@ -199,8 +199,39 @@ const updateLocation = async (request) => {
   );
 };
 
+// Controller with improved error handling
+const onBoardUserController = async (request, response) => {
+  try {
+    const data = await userService.onBoardUser(request);
+    return createResponse(
+      response,
+      httpStatus.OK,
+      request.t("user.USER_ONBOARDED"),
+      data
+    );
+  } catch (error) {
+    console.error("Onboarding Error:", {
+      message: error.message,
+      stack: error.stack,
+      requestBody: request.body,
+      files: request.files
+    });
 
-// 2. Improve the onBoardUser service
+    // Handle specific known errors
+    if (error.status) {
+      return createResponse(response, error.status, error.message);
+    }
+
+    // Handle unexpected errors
+    return createResponse(
+      response,
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "An unexpected error occurred while processing your request"
+    );
+  }
+};
+
+// Improved service with better validation and error handling
 const onBoardUser = async (request) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -209,54 +240,56 @@ const onBoardUser = async (request) => {
     const { name, email, userName, mobileNo, bio, teacherId, role } = request.body;
 
     // Validate required fields
-    const requiredFields = ['name', 'email', 'userName', 'mobileNo'];
-    const missingFields = requiredFields.filter(field => !request.body[field]);
-    if (missingFields.length > 0) {
+    if (!name || !email || !userName || !mobileNo) {
       throw new appError(
         httpStatus.BAD_REQUEST,
-        `Missing required fields: ${missingFields.join(', ')}`
+        "Missing required fields"
       );
     }
 
-    // Safely handle file paths
+    // Normalize and validate input
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedUsername = userName.trim();
+    
+    // Validate email format
+    if (!normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        "Invalid email format"
+      );
+    }
+
+    // Handle file paths with null checks
     const profileImg = request.files?.profileImage?.[0]?.location || "";
     const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
 
-    // Validate and normalize email
-    const normalizedEmail = email.toLowerCase().trim();
-    if (!normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      throw new appError(httpStatus.BAD_REQUEST, "Invalid email format");
-    }
-
-    // Check existing user with email or username
+    // Check for existing user
     const existingUser = await User.findOne({
-      $and: [
-        { _id: { $ne: request.user.id } },
-        {
-          $or: [
-            { email: normalizedEmail },
-            { userName: userName.trim() }
-          ]
-        }
-      ]
+      $or: [
+        { email: normalizedEmail },
+        { userName: normalizedUsername }
+      ],
+      _id: { $ne: request.user?.id }
     }).session(session);
 
     if (existingUser) {
-      const errorMessage = existingUser.email === normalizedEmail 
-        ? "Email already exists"
-        : "Username already exists";
-      throw new appError(httpStatus.CONFLICT, errorMessage);
+      throw new appError(
+        httpStatus.CONFLICT,
+        existingUser.email === normalizedEmail
+          ? "Email already exists"
+          : "Username already exists"
+      );
     }
 
     // Prepare update data
     const updateData = {
       name: name.trim(),
       email: normalizedEmail,
-      userName: userName.trim(),
-      mobileNo,
+      userName: normalizedUsername,
+      mobileNo: mobileNo.toString(),
       profileImage: profileImg,
       isOnboarded: true,
-      bio: bio?.trim(),
+      bio: bio?.trim() || "",
       role: role === ROLES.TEACHER ? ROLES.TEACHER : ROLES.USER
     };
 
@@ -272,7 +305,16 @@ const onBoardUser = async (request) => {
       updateData.teacherId = teacherId;
     }
 
-    // Update user with transaction
+    // Ensure user exists before update
+    const userExists = await User.findById(request.user?.id).session(session);
+    if (!userExists) {
+      throw new appError(
+        httpStatus.NOT_FOUND,
+        "User not found"
+      );
+    }
+
+    // Update user
     const updatedUser = await User.findByIdAndUpdate(
       request.user.id,
       updateData,
@@ -284,7 +326,10 @@ const onBoardUser = async (request) => {
     );
 
     if (!updatedUser) {
-      throw new appError(httpStatus.NOT_FOUND, "User not found");
+      throw new appError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to update user"
+      );
     }
 
     await session.commitTransaction();
@@ -292,13 +337,13 @@ const onBoardUser = async (request) => {
 
   } catch (error) {
     await session.abortTransaction();
-
+    
     // Clean up uploaded files if there's an error
-    if (Object.keys(request.files || {}).length > 0) {
+    if (request.files && Object.keys(request.files).length > 0) {
       try {
         const filesToDelete = [
-          request.files?.teacherIdCard?.[0]?.location,
-          request.files?.profileImage?.[0]?.location
+          request.files?.profileImage?.[0]?.location,
+          request.files?.teacherIdCard?.[0]?.location
         ].filter(Boolean);
         
         await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
@@ -309,25 +354,25 @@ const onBoardUser = async (request) => {
 
     throw error;
   } finally {
-    session.endSession();
+    await session.endSession();
   }
 };
 
-// 3. Create a validation middleware
-const validateOnboardRequest = (req, res, next) => {
+// Express middleware for request validation
+const validateOnboardRequest = async (req, res, next) => {
   try {
     const { name, email, userName, mobileNo, role } = req.body;
 
-    // Check required fields
-    if (!name || !email || !userName || !mobileNo) {
+    // Basic field validation
+    if (!name?.trim() || !email?.trim() || !userName?.trim() || !mobileNo) {
       return createResponse(
         res,
         httpStatus.BAD_REQUEST,
-        "Missing required fields"
+        "All fields are required: name, email, userName, mobileNo"
       );
     }
 
-    // Validate email format
+    // Email validation
     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       return createResponse(
         res,
@@ -336,25 +381,25 @@ const validateOnboardRequest = (req, res, next) => {
       );
     }
 
-    // Validate mobile number
-    if (!mobileNo.match(/^\d{10}$/)) {
+    // Mobile number validation
+    if (!mobileNo.toString().match(/^\d{10}$/)) {
       return createResponse(
         res,
         httpStatus.BAD_REQUEST,
-        "Invalid mobile number format"
+        "Mobile number must be 10 digits"
       );
     }
 
-    // Validate username
+    // Username validation
     if (!userName.match(/^[a-zA-Z0-9_]{3,30}$/)) {
       return createResponse(
         res,
         httpStatus.BAD_REQUEST,
-        "Invalid username format. Use 3-30 characters, alphanumeric and underscore only"
+        "Username must be 3-30 characters long and can only contain letters, numbers, and underscores"
       );
     }
 
-    // Validate role if provided
+    // Role validation
     if (role && !Object.values(ROLES).includes(role)) {
       return createResponse(
         res,
@@ -365,6 +410,7 @@ const validateOnboardRequest = (req, res, next) => {
 
     next();
   } catch (error) {
+    console.error("Validation Error:", error);
     return createResponse(
       res,
       httpStatus.BAD_REQUEST,
