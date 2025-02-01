@@ -180,6 +180,7 @@ const verifyOtp = async (request) => {
     );
   }
 };
+
 const updateLocation = async (request) => {
   const { lat, long, location } = request.body;
 
@@ -199,85 +200,109 @@ const updateLocation = async (request) => {
 };
 
 const onBoardUser = async (request) => {
-  const { name, email, userName, mobileNo, bio, teacherId, role } =
-    request.body;
-  const profileImg =
-    request.files?.profileImage != null ||
-      request.files?.profileImage != undefined
-      ? request.files?.profileImage[0]?.location
-      : "";
-  const teacherIdCard =
-    request.files?.teacherIdCard != null ||
-      request.files?.teacherIdCard != undefined
-      ? request.files?.teacherIdCard[0]?.location
-      : "";
+  try {
+    const { name, email, userName, mobileNo, bio, teacherId, role } = request.body;
 
-  const Email = email.toLowerCase();
-  const isExistingEmail = await User.findOne({
-    email: Email,
-    _id: { $ne: request.user.id },
-  });
-  const isExistingUserName = await User.findOne({
-    userName: userName,
-    _id: { $ne: request.user.id },
-  });
-
-  if (isExistingEmail || isExistingUserName) {
-    if (Object.keys(request.files).length != 0) {
-      if (teacherIdCard != "") {
-        await deleteFromS3(request.files?.teacherIdCard[0]?.location);
-
-        if (profileImg != "") {
-          await deleteFromS3(request.files?.profileImage[0]?.location);
-        }
-      }
+    // Input validation
+    if (!name || !email || !userName || !mobileNo) {
+      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
     }
-    if (isExistingEmail) {
-      throw new appError(httpStatus.CONFLICT, request.t("user.EMAIL_EXISTENT"));
-    } else {
+
+    // Handle file uploads safely
+    const profileImg = request.files?.profileImage?.[0]?.location || "";
+    const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
+
+    // Email validation and normalization
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // Check for existing email and username in a single query
+    const existingUser = await User.findOne({
+      $and: [
+        { _id: { $ne: request.user.id } },
+        {
+          $or: [
+            { email: normalizedEmail },
+            { userName: userName.trim() }
+          ]
+        }
+      ]
+    });
+
+    // Handle existing user conflict
+    if (existingUser) {
+      // Clean up uploaded files if they exist
+      if (Object.keys(request.files || {}).length > 0) {
+        const filesToDelete = [
+          teacherIdCard && request.files?.teacherIdCard[0]?.location,
+          profileImg && request.files?.profileImage[0]?.location
+        ].filter(Boolean);
+        
+        await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
+      }
+
       throw new appError(
         httpStatus.CONFLICT,
-        request.t("user.UserName_EXISTENT")
+        existingUser.email === normalizedEmail 
+          ? "Email already exists"
+          : "Username already exists"
       );
     }
-  }
 
-  if (role === ROLES.TEACHER) {
-    return await User.findByIdAndUpdate(
-      request.user.id,
-      {
-        name: name,
-        email: Email,
-        userName: userName,
-        mobileNo: mobileNo,
-        profileImage: profileImg,
-        isOnboarded: true,
-        teacherIdCard: teacherIdCard,
-        teacherId: teacherId,
-        role: ROLES.TEACHER,
-        bio: bio,
-      },
-      {
-        new: true,
-      }
-    );
-  }
-  return await User.findByIdAndUpdate(
-    request.user.id,
-    {
-      name: name,
-      email: Email,
-      mobileNo: mobileNo,
-      userName: userName,
+    // Prepare update data
+    const updateData = {
+      name: name.trim(),
+      email: normalizedEmail,
+      userName: userName.trim(),
+      mobileNo,
       profileImage: profileImg,
       isOnboarded: true,
-      bio: bio,
-      role: ROLES.USER,
-    },
-    {
-      new: true,
+      bio: bio?.trim(),
+      role: role === ROLES.TEACHER ? ROLES.TEACHER : ROLES.USER
+    };
+
+    // Add teacher-specific fields if applicable
+    if (role === ROLES.TEACHER) {
+      if (!teacherId || !teacherIdCard) {
+        throw new appError(httpStatus.BAD_REQUEST, "Teacher ID and ID card are required for teacher role");
+      }
+      updateData.teacherIdCard = teacherIdCard;
+      updateData.teacherId = teacherId;
     }
-  );
+
+    // Update user with new data
+    const updatedUser = await User.findByIdAndUpdate(
+      request.user.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!updatedUser) {
+      throw new appError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    return updatedUser;
+
+  } catch (error) {
+    // Clean up any uploaded files in case of error
+    if (Object.keys(request.files || {}).length > 0) {
+      try {
+        const filesToDelete = [
+          request.files?.teacherIdCard?.[0]?.location,
+          request.files?.profileImage?.[0]?.location
+        ].filter(Boolean);
+        
+        await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
+      } catch (cleanupError) {
+        console.error('Error cleaning up files:', cleanupError);
+      }
+    }
+
+    // Re-throw the original error
+    throw error;
+  }
 };
 
 async function addTeacherRole(request, params) {
@@ -305,85 +330,135 @@ async function addTeacherRole(request, params) {
 }
 
 async function updateUser(params, request) {
-  const currentUser = request.user;
   try {
+    // Find the current user
     const user = await User.findById(request.user.id);
-    if (user) {
-      if (!isEmpty(params.email)) {
-        const emailedUser = await User.findOne({ email: params.email });
-        if (isEmpty(emailedUser)) {
-          user.email = params.email;
-          await user.save();
-        } else {
-          throw new appError(
-            httpStatus.CONFLICT,
-            request.t("user.EMAIL_EXISTENT")
-          );
-        }
-      }
-      if (params.isTeacher) {
-        user.teacherId = params.teacherId;
-        await user.save();
-      }
-      if (
-        !isEmpty(params.mobileNo) &&
-        !isEmpty(params.countryCode) &&
-        params.mobileNo != currentUser.mobileNo
-      ) {
-        const mobiledUser = await User.findOne({
-          mobileNo: params.mobileNo,
-          countryCode: params.countryCode,
-        });
-        if (isEmpty(mobiledUser)) {
-          user.mobileNo = params.mobileNo;
-          user.countryCode = params.countryCode;
-          await user.save();
-        } else {
-          throw new appError(
-            httpStatus.CONFLICT,
-            request.t("user.MOBILE_EXISTENT")
-          );
-        }
-      }
-      if (!isEmpty(params.fullName)) {
-        user.fullName = params.fullName;
-        await user.save();
-      }
-
-      if (
-        !isEmpty(params.userName) &&
-        params.userName != currentUser.userName
-      ) {
-        const userWithUserName = await User.findOne({
-          userName: params.userName,
-          deletedAt: null,
-        });
-        if (isEmpty(userWithUserName)) {
-          user.userName = params.userName;
-        } else {
-          throw new appError(
-            httpStatus.CONFLICT,
-            request.t("user.USER_NAME_EXISTENT")
-          );
-        }
-      }
-      if (!isEmpty(params.location)) {
-        user.location = params.location;
-      }
-      await user.save();
-      returnVal.data = user;
-    } else {
+    if (!user) {
       throw new appError(
         httpStatus.NOT_FOUND,
-        request.t("user.USER_NOT_FOUND")
+        "User not found"
       );
     }
-    return returnVal;
+
+    // Create update object
+    const updates = {};
+    
+    // Handle email update
+    if (params.email) {
+      const normalizedEmail = params.email.toLowerCase().trim();
+      if (normalizedEmail !== user.email) {
+        const emailExists = await User.findOne({ 
+          email: normalizedEmail,
+          _id: { $ne: request.user.id }
+        });
+        
+        if (emailExists) {
+          throw new appError(
+            httpStatus.CONFLICT,
+            "Email already exists"
+          );
+        }
+        updates.email = normalizedEmail;
+      }
+    }
+
+    // Handle mobile number update
+    if (params.mobileNo && params.countryCode) {
+      if (params.mobileNo !== user.mobileNo || params.countryCode !== user.countryCode) {
+        const mobileExists = await User.findOne({
+          mobileNo: params.mobileNo,
+          countryCode: params.countryCode,
+          _id: { $ne: request.user.id }
+        });
+
+        if (mobileExists) {
+          throw new appError(
+            httpStatus.CONFLICT,
+            "Mobile number already exists"
+          );
+        }
+        updates.mobileNo = params.mobileNo;
+        updates.countryCode = params.countryCode;
+      }
+    }
+
+    // Handle username update
+    if (params.userName && params.userName !== user.userName) {
+      const usernameExists = await User.findOne({
+        userName: params.userName,
+        _id: { $ne: request.user.id },
+        deletedAt: null
+      });
+
+      if (usernameExists) {
+        throw new appError(
+          httpStatus.CONFLICT,
+          "Username already exists"
+        );
+      }
+      updates.userName = params.userName;
+    }
+
+    // Handle other basic updates
+    if (params.fullName) updates.fullName = params.fullName.trim();
+    if (params.location) updates.location = params.location;
+    
+    // Handle teacher-specific updates
+    if (params.isTeacher && params.teacherId) {
+      if (!user.role || user.role !== ROLES.TEACHER) {
+        throw new appError(
+          httpStatus.BAD_REQUEST,
+          "Cannot update teacher ID for non-teacher user"
+        );
+      }
+      updates.teacherId = params.teacherId;
+    }
+
+    // If no updates were provided
+    if (Object.keys(updates).length === 0) {
+      return { data: user };
+    }
+
+    // Update the user with all collected changes
+    const updatedUser = await User.findByIdAndUpdate(
+      request.user.id,
+      { $set: updates },
+      { 
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!updatedUser) {
+      throw new appError(
+        httpStatus.NOT_FOUND,
+        "User not found"
+      );
+    }
+
+    return { data: updatedUser };
+
   } catch (error) {
-    throw new appError(error.status, error.message);
+    // Handle mongoose validation errors
+    if (error.name === 'ValidationError') {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        Object.values(error.errors).map(err => err.message).join(', ')
+      );
+    }
+    
+    // Re-throw known application errors
+    if (error instanceof appError) {
+      throw error;
+    }
+
+    // Handle unexpected errors
+    throw new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "An error occurred while updating user"
+    );
   }
 }
-
 async function getUser(currentUser) {
   return await User.findById(currentUser);
 }
