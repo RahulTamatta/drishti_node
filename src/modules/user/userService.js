@@ -199,23 +199,36 @@ const updateLocation = async (request) => {
   );
 };
 
+
+// 2. Improve the onBoardUser service
 const onBoardUser = async (request) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { name, email, userName, mobileNo, bio, teacherId, role } = request.body;
 
-    // Input validation
-    if (!name || !email || !userName || !mobileNo) {
-      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields");
+    // Validate required fields
+    const requiredFields = ['name', 'email', 'userName', 'mobileNo'];
+    const missingFields = requiredFields.filter(field => !request.body[field]);
+    if (missingFields.length > 0) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        `Missing required fields: ${missingFields.join(', ')}`
+      );
     }
 
-    // Handle file uploads safely
+    // Safely handle file paths
     const profileImg = request.files?.profileImage?.[0]?.location || "";
     const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
 
-    // Email validation and normalization
+    // Validate and normalize email
     const normalizedEmail = email.toLowerCase().trim();
-    
-    // Check for existing email and username in a single query
+    if (!normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      throw new appError(httpStatus.BAD_REQUEST, "Invalid email format");
+    }
+
+    // Check existing user with email or username
     const existingUser = await User.findOne({
       $and: [
         { _id: { $ne: request.user.id } },
@@ -226,26 +239,13 @@ const onBoardUser = async (request) => {
           ]
         }
       ]
-    });
+    }).session(session);
 
-    // Handle existing user conflict
     if (existingUser) {
-      // Clean up uploaded files if they exist
-      if (Object.keys(request.files || {}).length > 0) {
-        const filesToDelete = [
-          teacherIdCard && request.files?.teacherIdCard[0]?.location,
-          profileImg && request.files?.profileImage[0]?.location
-        ].filter(Boolean);
-        
-        await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
-      }
-
-      throw new appError(
-        httpStatus.CONFLICT,
-        existingUser.email === normalizedEmail 
-          ? "Email already exists"
-          : "Username already exists"
-      );
+      const errorMessage = existingUser.email === normalizedEmail 
+        ? "Email already exists"
+        : "Username already exists";
+      throw new appError(httpStatus.CONFLICT, errorMessage);
     }
 
     // Prepare update data
@@ -260,22 +260,26 @@ const onBoardUser = async (request) => {
       role: role === ROLES.TEACHER ? ROLES.TEACHER : ROLES.USER
     };
 
-    // Add teacher-specific fields if applicable
+    // Add teacher-specific fields
     if (role === ROLES.TEACHER) {
       if (!teacherId || !teacherIdCard) {
-        throw new appError(httpStatus.BAD_REQUEST, "Teacher ID and ID card are required for teacher role");
+        throw new appError(
+          httpStatus.BAD_REQUEST,
+          "Teacher ID and ID card are required for teacher role"
+        );
       }
       updateData.teacherIdCard = teacherIdCard;
       updateData.teacherId = teacherId;
     }
 
-    // Update user with new data
+    // Update user with transaction
     const updatedUser = await User.findByIdAndUpdate(
       request.user.id,
       updateData,
       {
         new: true,
-        runValidators: true
+        runValidators: true,
+        session
       }
     );
 
@@ -283,10 +287,13 @@ const onBoardUser = async (request) => {
       throw new appError(httpStatus.NOT_FOUND, "User not found");
     }
 
+    await session.commitTransaction();
     return updatedUser;
 
   } catch (error) {
-    // Clean up any uploaded files in case of error
+    await session.abortTransaction();
+
+    // Clean up uploaded files if there's an error
     if (Object.keys(request.files || {}).length > 0) {
       try {
         const filesToDelete = [
@@ -296,15 +303,75 @@ const onBoardUser = async (request) => {
         
         await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
       } catch (cleanupError) {
-        console.error('Error cleaning up files:', cleanupError);
+        console.error('File cleanup error:', cleanupError);
       }
     }
 
-    // Re-throw the original error
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
+// 3. Create a validation middleware
+const validateOnboardRequest = (req, res, next) => {
+  try {
+    const { name, email, userName, mobileNo, role } = req.body;
+
+    // Check required fields
+    if (!name || !email || !userName || !mobileNo) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Missing required fields"
+      );
+    }
+
+    // Validate email format
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid email format"
+      );
+    }
+
+    // Validate mobile number
+    if (!mobileNo.match(/^\d{10}$/)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid mobile number format"
+      );
+    }
+
+    // Validate username
+    if (!userName.match(/^[a-zA-Z0-9_]{3,30}$/)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid username format. Use 3-30 characters, alphanumeric and underscore only"
+      );
+    }
+
+    // Validate role if provided
+    if (role && !Object.values(ROLES).includes(role)) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        "Invalid role specified"
+      );
+    }
+
+    next();
+  } catch (error) {
+    return createResponse(
+      res,
+      httpStatus.BAD_REQUEST,
+      "Invalid request data"
+    );
+  }
+};
 async function addTeacherRole(request, params) {
   try {
     const user = await User.findById(request.user.id);
