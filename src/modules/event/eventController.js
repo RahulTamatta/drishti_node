@@ -90,59 +90,66 @@ const notificatifyMe = async (request, response) => {
       throw new appError(httpStatus.UNAUTHORIZED, "User not authenticated");
     }
 
+    const userId = request.user.id;
+    console.log(`User ID: ${userId} is attempting to retrieve notifications.`);
+
     // Find events where user is a participant or subscriber
     const events = await Event.find({
       $or: [
-        { 'participants.userId': request.user.id },
-        { 'subscribers.userId': request.user.id }
+        { participants: userId },
+        { subscribers: userId }
       ],
-      'date.from': { $gte: new Date() } // Future events
+      "date.from": { $gte: new Date() } // Future events
     });
 
-    // If no events found, create a default notification
+    // Log events found or not
     if (events.length === 0) {
+      console.log(`No upcoming events found for user with ID: ${userId}`);
+
       const notification = await Notification.create({
         title: "No Active Events",
         description: "You are currently not registered for any upcoming events",
-        userId: request.user.id,
+        userId: userId,
         eventId: null,
-        status: 'pending'
+        status: "pending",
       });
 
       return createResponse(
-        response, 
-        httpStatus.OK, 
-        "No events found", 
+        response,
+        httpStatus.OK,
+        "No events found",
         notification
       );
     }
 
     // Process notifications for found events
-    const notifications = await Promise.all(events.map(async (event) => {
-      return await Notification.create({
-        title: `Event Notification: ${event.title}`,
-        description: `Upcoming event: ${event.title}`,
-        eventId: event._id,
-        userId: request.user.id,
-        status: 'pending'
-      });
-    }));
-
-    createResponse(
-      response, 
-      httpStatus.OK, 
-      "Notifications created", 
-      notifications
+    const notifications = await Promise.all(
+      events.map(async (event) => {
+        console.log(`Creating notification for event: ${event.title} (Event ID: ${event._id}) for user: ${userId}`);
+        
+        return await Notification.create({
+          title: `Event Notification: ${event.title}`,
+          description: `Upcoming event: ${event.title}`,
+          eventId: event._id,
+          userId: userId,
+          status: "pending",
+        });
+      })
     );
 
+    console.log(`Notifications created for user with ID: ${userId}`);
+
+    createResponse(response, httpStatus.OK, "Notifications created", notifications);
   } catch (error) {
+    console.error(`Error for user ID: ${request.user.id} - ${error.message}`);
     createResponse(
-      response, 
-      error.status || httpStatus.INTERNAL_SERVER_ERROR, 
+      response,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
       error.message || "An error occurred"
     );
   }
 };
+
 const getHorizontalEvents = async (request, response) => {
   try {
     const data = await eventService.getHorizontalEvents(request);

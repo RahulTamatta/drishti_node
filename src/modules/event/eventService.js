@@ -594,23 +594,41 @@ const getParticepents = async (request) => {
 // };
 
 const notificatifyMe = async (request) => {
+  const userId = request.user.id;
+  console.log(`User ID: ${userId} is attempting to subscribe to event notifications.`);
+
   let event = await Event.findById(request.params.id);
   if (!event) {
+    console.log(`Event not found for ID: ${request.params.id}`);
     throw new appError(httpStatus.CONFLICT, request.t("event.EVENT_NOT_FOUND"));
   }
 
-  if (!event.notifyTo.includes(request.user.id)) {
+  console.log(`Event found: ${event.title} (Event ID: ${event._id})`);
+
+  if (!event.notifyTo.includes(userId)) {
+    console.log(`User ID: ${userId} is not yet in the notification list for event: ${event.title}. Adding...`);
+
+    // Add user to the notification list
     event = await Event.findByIdAndUpdate(
       request.params.id,
       {
-        $push: { notifyTo: request.user.id },
+        $push: { notifyTo: userId },
       },
       { new: true }
     );
+
+    console.log(`User ID: ${userId} added to the notification list for event: ${event.title}.`);
+
+    // Send notifications after adding the user to the list
     await sendNotifications(event.notifyTo, event);
+    console.log(`Notifications sent to all users in the notifyTo list for event: ${event.title}.`);
+  } else {
+    console.log(`User ID: ${userId} is already in the notification list for event: ${event.title}.`);
   }
+
   return event;
 };
+
 
 const sendNotifications = async (userIds, event) => {
   for (const userId of userIds) {
