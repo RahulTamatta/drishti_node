@@ -695,24 +695,29 @@ const subscribeToEvent = async (eventId, userId, userName) => {
 };
 
 const getSubscribersByEventId = async (eventId) => {
-  try {
+  console.log(`Fetching event with ID: ${eventId}`);
 
-    const event = await Event.findById(eventId).populate({
-      path: 'participants.userId',
-      select: 'name',
-    });
+  const event = await Event.findById(eventId).populate({
+    path: 'participants.userId',
+    select: 'name',
+  });
 
-    if (!event) {
-      throw new Error('Event not found');
-    }
-
-    return event.participants.map(participant => ({
-      userId: participant.userId._id,
-      name: participant.userId.name
-    }));
-  } catch (error) {
-    throw new Error(error.message);
+  if (!event) {
+    console.log(`Event not found for ID: ${eventId}`);
+    throw new appError(httpStatus.NOT_FOUND, 'Event not found');
   }
+
+  console.log(`Event found:`, event);
+  console.log(`Participants:`, event.participants);
+
+  const subscribers = event.participants.map(participant => ({
+    userId: participant.userId._id,
+    name: participant.userId.name
+  }));
+
+  console.log(`Subscribers list:`, subscribers);
+
+  return subscribers;
 };
 
 const getNearEventService = async (longitude, latitude, maxDistance) => {
