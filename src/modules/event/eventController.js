@@ -85,27 +85,64 @@ const getMyEvents = async (request, response) => {
 };
 const notificatifyMe = async (request, response) => {
   try {
-    // Check if user is authenticated
+    // Verify user authentication
     if (!request.user || !request.user.id) {
       throw new appError(httpStatus.UNAUTHORIZED, "User not authenticated");
     }
-    
-    // Call event service to process notification
-    const data = await eventService.notificatifyMe(request);
-    
-    // Check if data was successfully processed
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT, request.t("event.UnableToNotify"));
+
+    // Find events where user is a participant or subscriber
+    const events = await Event.find({
+      $or: [
+        { 'participants.userId': request.user.id },
+        { 'subscribers.userId': request.user.id }
+      ],
+      'date.from': { $gte: new Date() } // Future events
+    });
+
+    // If no events found, create a default notification
+    if (events.length === 0) {
+      const notification = await Notification.create({
+        title: "No Active Events",
+        description: "You are currently not registered for any upcoming events",
+        userId: request.user.id,
+        eventId: null,
+        status: 'pending'
+      });
+
+      return createResponse(
+        response, 
+        httpStatus.OK, 
+        "No events found", 
+        notification
+      );
     }
-    
-    // Send successful response
-    createResponse(response, httpStatus.OK, request.t("event.AddedToNotify"), data);
+
+    // Process notifications for found events
+    const notifications = await Promise.all(events.map(async (event) => {
+      return await Notification.create({
+        title: `Event Notification: ${event.title}`,
+        description: `Upcoming event: ${event.title}`,
+        eventId: event._id,
+        userId: request.user.id,
+        status: 'pending'
+      });
+    }));
+
+    createResponse(
+      response, 
+      httpStatus.OK, 
+      "Notifications created", 
+      notifications
+    );
+
   } catch (error) {
-    // Handle any errors that occur
-    createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message || "An error occurred");
+    createResponse(
+      response, 
+      error.status || httpStatus.INTERNAL_SERVER_ERROR, 
+      error.message || "An error occurred"
+    );
   }
 };
-
 const getHorizontalEvents = async (request, response) => {
   try {
     const data = await eventService.getHorizontalEvents(request);
