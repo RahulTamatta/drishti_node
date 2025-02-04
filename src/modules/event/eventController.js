@@ -93,53 +93,50 @@ const notificatifyMe = async (request, response) => {
     const userId = request.user.id;
     console.log(`User ID: ${userId} is attempting to retrieve notifications.`);
 
-    // Find events where user is a participant or subscriber
-    const events = await Event.find({
-      $or: [
-        { participants: userId },
-        { subscribers: userId }
-      ],
-      "date.from": { $gte: new Date() } // Future events
-    });
+    // Get event ID from request parameters
+    const { eventId } = request.params;  // Assuming eventId is passed in the request params
 
-    // Log events found or not
-    if (events.length === 0) {
-      console.log(`No upcoming events found for user with ID: ${userId}`);
+    // Find event by ID
+    let event = await Event.findById(eventId);
+    if (!event) {
+      return response.status(404).json({ message: "Event not found." });
+    }
 
+    // Check if the user is a participant or subscriber of the event
+    if (!event.participants.includes(userId) && !event.subscribers.includes(userId)) {
+      console.log(`User ID: ${userId} is not a participant or subscriber for the event: ${event.title}`);
+      
       const notification = await Notification.create({
         title: "No Active Events",
         description: "You are currently not registered for any upcoming events",
         userId: userId,
-        eventId: null,
+        eventId: event._id,
         status: "pending",
       });
 
       return createResponse(
         response,
         httpStatus.OK,
-        "No events found",
+        "User is not part of any upcoming event",
         notification
       );
     }
 
-    // Process notifications for found events
-    const notifications = await Promise.all(
-      events.map(async (event) => {
-        console.log(`Creating notification for event: ${event.title} (Event ID: ${event._id}) for user: ${userId}`);
-        
-        return await Notification.create({
-          title: `Event Notification: ${event.title}`,
-          description: `Upcoming event: ${event.title}`,
-          eventId: event._id,
-          userId: userId,
-          status: "pending",
-        });
-      })
-    );
+    // Process notification for the event
+    console.log(`Creating notification for event: ${event.title} (Event ID: ${event._id}) for user: ${userId}`);
 
-    console.log(`Notifications created for user with ID: ${userId}`);
+    const notification = await Notification.create({
+      title: `Event Notification: ${event.title}`,
+      description: `Upcoming event: ${event.title}`,
+      eventId: event._id,
+      userId: userId,
+      status: "pending",
+    });
 
-    createResponse(response, httpStatus.OK, "Notifications created", notifications);
+    console.log(`Notification created for user with ID: ${userId}`);
+
+    createResponse(response, httpStatus.OK, "Notification created", notification);
+
   } catch (error) {
     console.error(`Error for user ID: ${request.user.id} - ${error.message}`);
     createResponse(
@@ -149,6 +146,7 @@ const notificatifyMe = async (request, response) => {
     );
   }
 };
+
 
 const getHorizontalEvents = async (request, response) => {
   try {
