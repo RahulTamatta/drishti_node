@@ -43,6 +43,7 @@ const getNotifications = async (request, response) => {
     }
 };
 
+// Controller function
 const getNotificationById = async (request, response) => {
     try {
         const data = await notificationService.getNotificationById(request);
@@ -62,7 +63,6 @@ const getNotificationById = async (request, response) => {
         createResponse(response, error.status, error.message);
     }
 };
-
 module.exports = {
     createNotification,
     getNotifications,

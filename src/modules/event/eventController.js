@@ -85,20 +85,23 @@ const getMyEvents = async (request, response) => {
 };
 const notificatifyMe = async (request, response) => {
   try {
-    // Check if request.user is defined and has an id
+    // Check if user is authenticated
     if (!request.user || !request.user.id) {
       throw new appError(httpStatus.UNAUTHORIZED, "User not authenticated");
     }
-
-    // Call the event service
+    
+    // Call event service to process notification
     const data = await eventService.notificatifyMe(request);
-
+    
+    // Check if data was successfully processed
     if (!data) {
       throw new appError(httpStatus.CONFLICT, request.t("event.UnableToNotify"));
     }
-
+    
+    // Send successful response
     createResponse(response, httpStatus.OK, request.t("event.AddedToNotify"), data);
   } catch (error) {
+    // Handle any errors that occur
     createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message || "An error occurred");
   }
 };

@@ -86,28 +86,16 @@ async function getNotifications() {
     return await Notification.find().sort({ date: -1 })
 }
 
-
 async function getNotificationById(request) {
     const { id } = request.params;
     const notification = await Notification.findById(id);
     if (!notification) {
         throw new appError(httpStatus.NOT_FOUND, "Notification not found");
     }
-
+    
     return notification;
 }
 
-// async function updateEventById(request) {
-//     const eventId = request.params.id;
-//     const updates = request.body;
-
-//     const event = await Event.findByIdAndUpdate(eventId, updates, { new: true });
-//     if (!event) {
-//         throw new appError(httpStatus.NOT_FOUND, "Event not found");
-//     }
-
-//     return event;
-// }
 
 
 module.exports = {
