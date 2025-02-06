@@ -146,11 +146,41 @@ const sendEventReminders = async () => {
   }
 };
 
+const getNotificationById = async (request, response) => {
+  try {
+    const { id } = request.params;
+    console.log('Debug - Getting notification by ID:', { notificationId: id });
+
+    const notification = await Notification.findById(id)
+      .populate('event')
+      .populate('user');
+
+    console.log('Debug - Found notification:', {
+      notificationFound: !!notification,
+      notificationData: notification
+    });
+
+    if (!notification) {
+      throw new appError(httpStatus.NOT_FOUND, "Notification not found");
+    }
+
+    createResponse(
+      response,
+      httpStatus.OK,
+      "Notification retrieved successfully",
+      notification
+    );
+  } catch (error) {
+    createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message);
+  }
+};
+
 module.exports = {
   createNotification,
   subscribeNotification,
   getUserNotifications,
-  sendEventReminders
+  sendEventReminders,
+  getNotificationById
 };
 
 

@@ -5,6 +5,18 @@ const { ROLES } = require("../../common/utils/constants");
 const methodNotAllowed = require("../../middleware/methodNotAllowed");
 
 router
+  .route("/")
+  .get(
+    auth(ROLES.USER), 
+    notificationController.getUserNotifications
+  )
+  .post(
+    auth(ROLES.USER),
+    notificationController.createNotification
+  )
+  .all(methodNotAllowed);
+
+router
   .route("/subscribe/:eventId")
   .post(
     auth(ROLES.USER), 
@@ -13,10 +25,10 @@ router
   .all(methodNotAllowed);
 
 router
-  .route("/")
+  .route("/:id")
   .get(
-    auth(ROLES.USER), 
-    notificationController.getUserNotifications
+    auth(ROLES.USER),
+    notificationController.getNotificationById
   )
   .all(methodNotAllowed);
 
