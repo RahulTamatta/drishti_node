@@ -15,9 +15,18 @@ const createNotification = async (request, response) => {
   try {
     const { userId, eventId, title, description, type } = request.body;
 
+    console.log('Debug - Incoming IDs:', { userId, eventId });
+
     // Verify event and user exist
     const event = await Event.findById(eventId);
     const user = await User.findById(userId);
+
+    console.log('Debug - Found entities:', {
+      eventFound: !!event,
+      userFound: !!user,
+      eventData: event,
+      userData: user
+    });
 
     if (!event || !user) {
       throw new appError(httpStatus.NOT_FOUND, "Event or User not found");
@@ -47,8 +56,19 @@ const subscribeNotification = async (request, response) => {
     const { eventId } = request.params;
     const userId = request.user.id;
 
+    console.log('Debug - Subscribe Notification:', {
+      eventId,
+      userId,
+      userObject: request.user
+    });
+
     // Find event
     const event = await Event.findById(eventId);
+    console.log('Debug - Found event:', {
+      eventFound: !!event,
+      eventData: event
+    });
+
     if (!event) {
       throw new appError(httpStatus.NOT_FOUND, "Event not found");
     }
