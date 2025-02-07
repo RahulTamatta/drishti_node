@@ -16,7 +16,7 @@ module.exports = (app) => {
   app.use("/course", course);
   app.use("/address", address);
   app.use("/banner", banner);
-  app.use('/notification', notification);
+  app.use('/notifications', notification);
   app.use('/profile', profile)
 
   // app.use("/room", room);

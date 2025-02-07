@@ -1,31 +1,21 @@
 const Joi = require("joi");
 const constants = require("../../common/utils/constants");
 
-const onBoardUserV = {
-  body: Joi.object().keys({
-    name: Joi.string(),
-    email: Joi.string().required(),
-    mobileNo: Joi.string().required(),
-    userName: Joi.string().required(),
-    bio: Joi.string().optional(),
-    profileImage: Joi.object({
-      originalname: Joi.string().required(),
-      mimetype: Joi.string().valid("image/jpeg", "image/png").required(),
-      size: Joi.number().max(10485760).required(), // 10 MB limit
-    }),
-    teacherIdCard: Joi.object({
-      originalname: Joi.string().required(),
-      mimetype: Joi.string().valid("image/jpeg", "image/png").required(),
-      size: Joi.number().max(10485760).required(), // 10 MB limit
-      url: Joi.string().uri().required()
-
-    }),
-    teacherId: Joi.string().allow(""),
-    role: Joi.string()
-      .allow(constants.ROLES.TEACHER, constants.ROLES.USER)
-      .required(),
+// In userValidation.js
+const onBoardUserV = Joi.object({
+  userName: Joi.string().required(),
+  name: Joi.string().required(),
+  email: Joi.string().email().required(),
+  mobileNo: Joi.string().length(10).required(),
+  role: Joi.string().valid("user", "teacher").required(),
+  teacherId: Joi.when("role", {
+    is: "teacher",
+    then: Joi.string().required(),
+    otherwise: Joi.optional(),
   }),
-};
+  // Add other fields if needed
+});
+
 const userLoginV = {
   body: Joi.object().keys({
     mobileNo: Joi.string().required(),
@@ -41,6 +31,7 @@ const updateLocationV = {
     location: Joi.string().required(),
   }),
 };
+
 const updateSocialMediaLinksV = {
   body: Joi.object().keys({
     youtubeUrl: Joi.string().allow(""),
@@ -70,6 +61,7 @@ const teachersListingV = {
     search: Joi.string(),
   }),
 };
+
 module.exports = {
   updateLocationV,
   onBoardUserV,

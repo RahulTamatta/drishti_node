@@ -199,9 +199,17 @@ const updateLocation = async (request) => {
   );
 };
 
-// Controller with improved error handling
 const onBoardUserController = async (request, response) => {
   try {
+    // Validate request before processing
+    if (!request.body || !request.files) {
+      return createResponse(
+        response, 
+        httpStatus.BAD_REQUEST, 
+        "Missing required files or data"
+      );
+    }
+
     const data = await userService.onBoardUser(request);
     return createResponse(
       response,
@@ -210,28 +218,30 @@ const onBoardUserController = async (request, response) => {
       data
     );
   } catch (error) {
-    console.error("Onboarding Error:", {
+    console.error("Comprehensive Onboarding Error:", {
       message: error.message,
       stack: error.stack,
       requestBody: request.body,
-      files: request.files
+      requestFiles: request.files,
+      errorName: error.name,
+      errorCode: error.code
     });
 
-    // Handle specific known errors
-    if (error.status) {
-      return createResponse(response, error.status, error.message);
-    }
-
-    // Handle unexpected errors
+    // More granular error response
     return createResponse(
       response,
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "An unexpected error occurred while processing your request"
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Detailed onboarding process failed",
+      { 
+        errorDetails: {
+          name: error.name,
+          code: error.code
+        }
+      }
     );
   }
 };
 
-// Improved service with better validation and error handling
 const onBoardUser = async (request) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -262,6 +272,14 @@ const onBoardUser = async (request) => {
     // Handle file paths with null checks
     const profileImg = request.files?.profileImage?.[0]?.location || "";
     const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
+
+    // Validate profile image
+    if (!profileImg) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        "Profile image is required"
+      );
+    }
 
     // Check for existing user
     const existingUser = await User.findOne({
@@ -314,7 +332,7 @@ const onBoardUser = async (request) => {
       );
     }
 
-    // Update user
+    // Update the user with all collected changes
     const updatedUser = await User.findByIdAndUpdate(
       request.user.id,
       updateData,
@@ -338,6 +356,15 @@ const onBoardUser = async (request) => {
   } catch (error) {
     await session.abortTransaction();
     
+    // Log detailed error information
+    console.error('Onboarding Error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      requestBody: request.body
+    });
+    
     // Clean up uploaded files if there's an error
     if (request.files && Object.keys(request.files).length > 0) {
       try {
@@ -352,12 +379,12 @@ const onBoardUser = async (request) => {
       }
     }
 
+    // Rethrow the original error
     throw error;
   } finally {
     await session.endSession();
   }
 };
-
 // Express middleware for request validation
 const validateOnboardRequest = async (req, res, next) => {
   try {

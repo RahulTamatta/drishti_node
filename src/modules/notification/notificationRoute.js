@@ -28,7 +28,7 @@ router
   .route("/:id")
   .get(
     auth(ROLES.USER),
-    notificationController.getNotificationById
+    notificationController.getUserNotifications
   )
   .all(methodNotAllowed);
 

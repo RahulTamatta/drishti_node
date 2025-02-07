@@ -1,14 +1,14 @@
-const admin = require("firebase-admin");
-const serviceAccount = require("../utils/firebase_admin.json");
+// const admin = require("firebase-admin");
+// const serviceAccount = require("../utils/firebase_admin.json");
 
-admin.initializeApp(
-  {
-    credential: admin.credential.cert(serviceAccount),
-  },
-  "srisridrishti-c1673"
-);
+// admin.initializeApp(
+//   {
+//     credential: admin.credential.cert(serviceAccount),
+//   },
+//   "srisridrishti-c1673"
+// );
 
-const messaging = admin.messaging();
+// const messaging = admin.messaging();
 
 // async function sendNotification(title, body, token) {
 //   const serverKey = process.env.FIREBASE_SERVER_KEY;

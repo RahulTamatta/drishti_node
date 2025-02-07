@@ -120,13 +120,53 @@ const updateLocationController = async (request, response) => {
 
 const onBoardUserController = async (request, response) => {
   try {
-    const data = await userService.onBoardUser(request);
-    if (!data) {
+    // Enhanced input validation
+    if (!request.body || !request.files) {
       throw new appError(
-        httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_ONBOARD_USER")
+        httpStatus.BAD_REQUEST, 
+        "Missing required files or data"
       );
     }
+
+    // Validate specific required files
+    const requiredFiles = ['profileImage', 'teacherIdCard'];
+    for (let file of requiredFiles) {
+      if (!request.files[file]) {
+        throw new appError(
+          httpStatus.BAD_REQUEST, 
+          `Missing required file: ${file}`
+        );
+      }
+    }
+
+    // Additional file validation
+    const validateFile = (file) => {
+      const maxSize = 500 * 1024; // 500KB
+      const allowedTypes = ['image/jpeg', 'image/png'];
+
+      if (file.size > maxSize) {
+        throw new appError(
+          httpStatus.BAD_REQUEST, 
+          `File too large: ${file.originalname}`
+        );
+      }
+
+      if (!allowedTypes.includes(file.mimetype)) {
+        throw new appError(
+          httpStatus.BAD_REQUEST, 
+          `Invalid file type: ${file.originalname}`
+        );
+      }
+    };
+
+    // Validate profile image and teacher ID card
+    validateFile(request.files.profileImage[0]);
+    if (request.body.role === 'teacher') {
+      validateFile(request.files.teacherIdCard[0]);
+    }
+
+    const data = await userService.onBoardUser(request);
+
     createResponse(
       response,
       httpStatus.OK,
@@ -134,11 +174,19 @@ const onBoardUserController = async (request, response) => {
       data
     );
   } catch (error) {
-    console.log("error------", error);
-    createResponse(response, error.status, error.message);
+    console.error('Onboarding Error:', {
+      message: error.message,
+      stack: error.stack,
+      status: error.status || httpStatus.INTERNAL_SERVER_ERROR
+    });
+
+    createResponse(
+      response, 
+      error.status || httpStatus.INTERNAL_SERVER_ERROR, 
+      error.message || request.t("user.ONBOARDING_FAILED")
+    );
   }
 };
-
 async function getUser(request, response) {
   try {
     const data = await userService.getUser(request.user.id);
