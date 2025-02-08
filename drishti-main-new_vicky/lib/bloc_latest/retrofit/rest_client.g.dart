@@ -36,7 +36,7 @@ class _RestClient implements RestClient {
     final _headers = header;
     final _data = add;
     final _options = _setStreamType<dynamic>(Options(
-      method: 'POST',
+      method: 'PATCH',
       headers: _headers,
       extra: _extra,
       contentType: 'multipart/form-data',

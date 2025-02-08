@@ -45,7 +45,7 @@ router
 router.route("/verify").post(verifyOtpController).all(methodNotAllowed);
 router
   .route("/onBoard")
-  .post(
+  .patch(
     [
       auth(ROLES.ALL),
       uploadToS3.fields([

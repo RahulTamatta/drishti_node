@@ -12,7 +12,6 @@ class ProfileService {
 
   ProfileService({http.Client? httpClient})
       : client = httpClient ?? http.Client();
-
   Future<OnboardResponse> addProfileDetails({
     required String username,
     required String fullName,
@@ -37,10 +36,18 @@ class ProfileService {
         body['teacherId'] = teacherId;
       }
 
-      final response = await client.post(url, body: jsonEncode(body), headers: {
+      print("🚀 Sending request to: $url");
+      print("📦 Request Body: ${jsonEncode(body)}");
+      print("🔑 Authorization: $token");
+
+      final response =
+          await client.patch(url, body: jsonEncode(body), headers: {
         'Content-Type': 'application/json',
         'Authorization': token ?? "",
       });
+
+      print("📡 Response Status: ${response.statusCode}");
+      print("📡 Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
@@ -51,12 +58,15 @@ class ProfileService {
         );
       } else {
         final errorMessage = jsonDecode(response.body)['message'];
+        print("❌ Error: $errorMessage");
         return OnboardResponse(
           success: false,
           message: errorMessage.toString(),
         );
       }
-    } catch (e) {
+    } catch (e, stacktrace) {
+      print("💥 Exception: $e");
+      print("🛑 Stacktrace: $stacktrace");
       return OnboardResponse(
         success: false,
         message: 'Exception: $e',

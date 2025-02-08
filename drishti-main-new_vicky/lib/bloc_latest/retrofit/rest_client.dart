@@ -40,7 +40,7 @@ abstract class RestClient {
     return _RestClient(dio, baseUrl: baseUrl);
   }
 
-  @POST("/user/onBoard")
+  @PATCH("/user/onBoard")
   Future<dynamic> addProfile(@Body() add, dynamic header);
 
   @PATCH("/user/onBoard/{id}")

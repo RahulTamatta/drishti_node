@@ -33,12 +33,23 @@ class ApiProvider {
     dynamic response;
 
     try {
+      // Ensure header has the proper Content-Type
+      if (!header.containsKey('Content-Type')) {
+        header['Content-Type'] = 'application/json';
+      }
+
       logger.d("Request Data: $add");
       logger.d("Request Headers: $header");
 
+      // Make the API call via your RestClient instance.
       response = await apiClient!.addProfile(add, header);
-
       logger.d("Response Data: $response");
+
+      // Optionally, check response.statusCode if available
+      if (response.statusCode == 500) {
+        logger.e(
+            "Server returned 500 Internal Server Error. Check that your endpoint, payload, and headers match what the server expects.");
+      }
     } catch (error, stacktrace) {
       logger.e("Exception occurred:", error: error, stackTrace: stacktrace);
       return BaseModel()

@@ -7,11 +7,6 @@ final class AuthenticationInitial extends AuthenticationState {}
 
 final class AuthenticationLoading extends AuthenticationState {}
 
-// final class AuthenticationSuccessfull extends AuthenticationState {
-//   final VerifyOtpResponse verifyOtpResponse;
-//   AuthenticationSuccessfull({required this.verifyOtpResponse});
-// }
-
 class AuthenticationSuccessfull extends AuthenticationState {
   final VerifyOtpResponse verifyOtpResponse;
 
