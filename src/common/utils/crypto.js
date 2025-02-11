@@ -1,43 +1,57 @@
 const crypto = require("crypto");
-const config = require("../config/config");
-var password = config.crypto.CryptoPassword;
-var iv = Buffer.from(config.crypto.Iv, "hex");
-function sha1(input) {
-  return crypto.createHash("sha1").update(input).digest();
-}
+const CryptoJS = require('crypto-js');
+require('dotenv').config();
 
-function password_derive_bytes(password, salt, iterations, len) {
-  var key = Buffer.from(password + salt);
-  for (var i = 0; i < iterations; i++) {
-    key = sha1(key);
+const encode = async (data) => {
+  try {
+    // Convert data to string if it's an object
+    const stringData = typeof data === 'object' ? JSON.stringify(data) : String(data);
+    
+    // Use CryptoJS for encryption
+    const encrypted = CryptoJS.AES.encrypt(
+      stringData,
+      process.env.ENCRYPTION_KEY
+    ).toString();
+    
+    console.log('Encryption successful:', {
+      original: stringData,
+      encrypted: encrypted
+    });
+    
+    return encrypted;
+  } catch (error) {
+    console.error('Encryption error:', error);
+    throw new Error('Failed to encrypt data');
   }
-  if (key.length < len) {
-    var hx = password_derive_bytes(password, salt, iterations - 1, 20);
-    for (var counter = 1; key.length < len; ++counter) {
-      key = Buffer.concat([
-        key,
-        sha1(Buffer.concat([Buffer.from(counter.toString()), hx])),
-      ]);
+};
+
+const decode = async (encryptedData) => {
+  try {
+    console.log('Attempting to decrypt:', encryptedData);
+    
+    // Split the encrypted data to get salt and data
+    const encryptedParts = encryptedData.split('|');
+    const encryptedText = encryptedParts[0] || encryptedData; // Fallback to full string if no separator
+
+    // Decrypt using CryptoJS
+    const bytes = CryptoJS.AES.decrypt(encryptedText, process.env.ENCRYPTION_KEY);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    
+    if (!decrypted) {
+      console.error('Decryption resulted in empty string');
+      throw new Error('Decryption failed');
     }
+    
+    console.log('Decryption successful:', {
+      input: encryptedData,
+      decrypted: decrypted
+    });
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt data');
   }
-  return Buffer.alloc(len, key);
-}
-
-async function encode(string) {
-  var key = password_derive_bytes(password, "", 100, 32);
-  var cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  var part1 = cipher.update(string, "utf8");
-  var part2 = cipher.final();
-  const encrypted = Buffer.concat([part1, part2]).toString("base64");
-  return encrypted;
-}
-
-async function decode(string) {
-  var key = password_derive_bytes(password, "", 100, 32);
-  var decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-  var decrypted = decipher.update(string, "base64", "utf8");
-  decrypted += decipher.final();
-  return decrypted;
-}
+};
 
 module.exports = { encode, decode };

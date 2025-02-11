@@ -6,180 +6,158 @@ const { createToken } = require("../../middleware/genrateTokens");
 const { ROLES } = require("../../common/utils/constants");
 const { encode, decode } = require("../../common/utils/crypto");
 const { generateOTP } = require("../../common/utils/helpers");
-const { uploadToS3, deleteFromS3 } = require("../../common/utils/uploadToS3");
+
 const constants = require("../../common/utils/constants");
 const sendSms = require("../../common/utils/messageService");
-const OtpRecord = require('../../models/otp');
-const { request } = require("express");
-const Twilio = require('twilio');
-
-
+const uploadFilesToBucket = require("../../middleware/uploadTofireBase"); // Adjust path
+const axios = require('axios');
 function AddMinutesToDate(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }
-
-// Initialize Twilio client
-const twilioClient = Twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
-// After (correct initialization)
-const client = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-
 const userLoginService = async (request) => {
+  const { mobileNo, countryCode, type } = request.body;
+  let user = await User.findOne({
+    mobileNo: mobileNo,
+  });
+
+  const API_KEY = process.env.TWO_FACTOR_API_KEY;
+
+  if (!API_KEY) {
+    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'TWO_FACTOR_API_KEY is not defined');
+  }
+
   try {
-    const { mobileNo, countryCode } = request.body;
+    const response = await axios.get(`https://2factor.in/API/V1/${API_KEY}/SMS/${countryCode}${mobileNo}/AUTOGEN/OTP%20For%20Verification`);
 
-    // Validate required fields
-    if (!mobileNo || !countryCode) {
-      throw new appError(httpStatus.BAD_REQUEST, "Mobile number and country code are required");
-    }
+    // Check for success and also for specific error codes if 2factor API provides them
+    if (response.data.Status === "Success") {
+      const sessionId = response.data.Details;
+      const now = new Date();
+      const expiration_time = AddMinutesToDate(now, 10);
 
-    // Validate if TWILIO_VERIFY_SID exists
-    if (!process.env.TWILIO_VERIFY_SID) {
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Twilio Verify Service not configured");
-    }
+      let details = {
+        sessionId: sessionId,
+        expiration_time: expiration_time,
+        mobile: mobileNo,
+        countryCode: countryCode,
+        type: type,
+      };
 
-    // Use Twilio Verify API to send OTP
-    try {
-      const formattedNumber = `${
-        countryCode.startsWith('+') ? countryCode : `+${countryCode}`
-      }${mobileNo}`;
-      
-      const verification = await client.verify.v2
-        .services(process.env.TWILIO_VERIFY_SID)
-        .verifications
-        .create({
-          to: formattedNumber,
-          channel: 'sms'
-        });
-
-      // Save OTP record for cooldown tracking
-      await OtpRecord.create({
-        mobileNo,
-        countryCode,
-        createdAt: new Date(),
-      });
-
-      return { data: { message: "OTP sent successfully" } };
-    } catch (twilioError) {
-      console.error('Twilio API Error:', twilioError);
-      if (twilioError.code === 60200) {
-        throw new appError(httpStatus.BAD_REQUEST, "Invalid phone number format");
+      if (user) {
+        details["userId"] = user._id.toString();
       }
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send OTP: " + twilioError.message);
+
+      return { data: await encode(JSON.stringify(details)) };
+
+    } else {
+      console.error("2Factor API Error:", response.data);
+
+      // More specific error handling based on 2factor API response
+      let errorMessage = "Failed to send OTP";
+      if (response.data && response.data.Details) { // Check if Details exists
+        errorMessage = response.data.Details; // Try to extract more details from the API response
+      }
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+
     }
   } catch (error) {
-    console.error('Service Error:', error);
-    throw error;
+    console.error("Error sending OTP:", error);
+
+    // Improved error message handling.  Include original error message if available.
+    let errorMessage = "Error sending OTP";
+    if (error.response && error.response.data && error.response.data.message) {
+        errorMessage = error.response.data.message; // From backend
+    } else if (error.message) {
+        errorMessage = error.message; // From axios or other errors
+    } else if (error.toString()) {
+      errorMessage = error.toString();
+    }
+    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
   }
 };
 
-const verifyOtp = async (request) => {
-  const { mobileNo, otp, deviceToken } = request.body;
 
+const  verifyOtp = async (request) => {
   try {
-    // 1. Validate required fields
-    if (!mobileNo || !otp) {
-      throw new appError(httpStatus.BAD_REQUEST, "Mobile number and OTP are required");
+    const { otp, deviceToken, data } = request.body;
+    
+    // Decode and validate the encrypted data
+    const decoded = await decode(data);
+    const decodedObj = JSON.parse(decoded);
+
+    // Verify expiration
+    const expirationTime = new Date(decodedObj.expiration_time);
+    if (expirationTime <= new Date()) {
+      throw new appError(httpStatus.UNAUTHORIZED, "OTP expired");
     }
 
-    // 2. Validate OTP format (6-digit string)
-    if (!/^\d{6}$/.test(otp)) {
-      throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 numeric digits");
+    // Verify OTP with 2Factor API
+    const verifyResponse = await axios.get(
+      `https://2factor.in/API/V1/${process.env.TWO_FACTOR_API_KEY}/SMS/VERIFY/${decodedObj.sessionId}/${otp}`
+    );
+
+    if (verifyResponse.data.Status !== "Success") {
+      throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
     }
 
-    // 3. Validate Indian phone number format
-    if (!/^\d{10}$/.test(mobileNo)) {
-      throw new appError(
-        httpStatus.BAD_REQUEST,
-        "Invalid phone number. Use 10-digit Indian number (e.g., 8291541168)"
-      );
-    }
-
-    // 4. Force E.164 format for Twilio
-    const twilioPhoneNumber = `+91${mobileNo}`;
-
-    // 5. Verify with Twilio
-    const verificationCheck = await twilioClient.verify.v2
-      .services(process.env.TWILIO_VERIFY_SID)
-      .verificationChecks.create({
-        to: twilioPhoneNumber,
-        code: otp
+    try {
+      // Find existing user
+      let user = await User.findOne({
+        mobileNo: decodedObj.mobile,
+        countryCode: decodedObj.countryCode
       });
 
-    // 6. Check verification status
-    if (verificationCheck.status !== "approved") {
-      throw new appError(httpStatus.UNAUTHORIZED, "Invalid or expired OTP");
-    }
+      const isNewUser = !user;
 
-    // 7. Find/Create user
-    let user = await User.findOne({ mobileNo });
+      if (isNewUser) {
+        // Create new user
+        user = await User.create({
+          mobileNo: decodedObj.mobile,
+          countryCode: decodedObj.countryCode,
+          deviceTokens: deviceToken ? [deviceToken] : [],
+          role: 'USER',
+          isOnboarded: false,
+          refreshTokens: [] // Initialize empty refresh tokens array
+        });
+      } else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
+        // Update existing user's device tokens
+        user.deviceTokens.push(deviceToken);
+        user = await user.save(); // Save and get updated user
+      }
 
-    // New user creation
-    if (!user) {
-      user = await User.create({
-        mobileNo,
-        deviceTokens: deviceToken ? [deviceToken] : [],
-      });
-    }
-    // Existing user - update device token
-    else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
-      user.deviceTokens.push(deviceToken);
-      await user.save();
-    }
+      // Generate tokens for the user
+      const tokens = await createToken(user);
 
-    // 8. Generate JWT and ensure it exists
-    const tokenData = await createToken(user);
-    if (!tokenData || !tokenData.accessToken) {
-      throw new appError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        "Failed to generate authentication token"
-      );
-    }
-
-    // 9. Return response with guaranteed token data
-    return {
-      success: true,
-      message: "OTP verified successfully",
-      data: {
-        role: user.role,
-        accessToken: tokenData.accessToken,
-        accessTokenExpiresAt: tokenData.accessTokenExpiresAt.toISOString(),
-        refreshToken: tokenData.refreshToken,
-        refreshTokenExpiresAt: tokenData.refreshTokenExpiresAt.toISOString(),
+      return {
+        success: true,
+        isNewUser,
         user: {
           _id: user._id,
           mobileNo: user.mobileNo,
+          countryCode: user.countryCode,
           role: user.role,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
-        }
-      }
-    };
+          isOnboarded: user.isOnboarded
+        },
+        ...tokens
+      };
 
-  } catch (error) {
-    // Handle Twilio errors
-    if (error.code === 60200) {
+    } catch (dbError) {
+      console.error('Database operation error:', dbError);
       throw new appError(
-        httpStatus.BAD_REQUEST,
-        "Invalid phone number format. Contact support."
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Error processing user data"
       );
     }
 
-    // Handle known operational errors
-    if (error instanceof appError) {
-      throw error;
-    }
-
-    // Generic error fallback
+  } catch (error) {
+    console.error("OTP Verification Error:", error);
     throw new appError(
-      error.statusCode || httpStatus.INTERNAL_SERVER_ERROR,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
       error.message || "OTP verification failed"
     );
   }
 };
+
 
 const updateLocation = async (request) => {
   const { lat, long, location } = request.body;
@@ -189,7 +167,6 @@ const updateLocation = async (request) => {
     {
       location: location,
       latlong: {
-        type: "Point",
         coordinates: [parseFloat(long), parseFloat(lat)],
       },
     },
@@ -199,252 +176,204 @@ const updateLocation = async (request) => {
   );
 };
 
-const onBoardUserController = async (request, response) => {
+
+
+const onBoardUser = async (request) => {
+  console.log("request.user.id:", request.user.id);
+  console.log("request.user:", request.user);
+  console.log("onBoardUser called. Request body:", request.body);  // Log request body inside
+  console.log("onBoardUser called. Request files:", request.files);  // Log request files inside
+  console.log("onBoardUser called. Request user:", request.user);  // Log request user inside
+  console.log("onBoardUser called. Request user ID:", request.user?.id);  // Log user ID (safely)
+
+
+  const { name, email, userName, mobileNo, bio, teacherId, role, youtubeUrl, xUrl, instagramUrl, nearByVisible, locationSharing } = request.body;
+
+  let profileImg = "";
+  let teacherIdCard = "";
+
+  try {  // Wrap the file upload in a try-catch
+
+    if (request.files && Object.keys(request.files).length !== 0) {
+      const filesToUpload = [];
+      if (request.files.profileImage && request.files.profileImage.length > 0) {
+        filesToUpload.push(request.files.profileImage[0]);
+      }
+      if (request.files.teacherIdCard && request.files.teacherIdCard.length > 0) {
+        filesToUpload.push(request.files.teacherIdCard[0]);
+      }
+
+      if (filesToUpload.length > 0) {
+        const uploadedFiles = await uploadFilesToBucket(filesToUpload);
+        console.log("Uploaded files:", uploadedFiles); // Log the result of the upload
+        uploadedFiles.forEach(file => {
+          if (file.label.startsWith('profileImage')) {
+            profileImg = file.link;
+          } else if (file.label.startsWith('teacherIdCard')) {
+            teacherIdCard = file.link;
+          }
+        });
+      }
+    }
+  } catch (fileUploadError) {
+    console.error("File upload error in onBoardUser:", fileUploadError);
+    console.error("File upload error (stringified):", JSON.stringify(fileUploadError, null, 2));
+    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed: " + fileUploadError.message);
+  }
+
+
+  const Email = email ? email.toLowerCase() : null; // Handle if email is undefined
+
   try {
-    // Validate request before processing
-    if (!request.body || !request.files) {
+    const isExistingEmail = await User.findOne({
+      email: Email,
+      _id: { $ne: request.user.id },
+    });
+    console.log("isExistingEmail:", isExistingEmail);
+
+    const isExistingUserName = await User.findOne({
+      userName: userName,
+      _id: { $ne: request.user.id },
+    });
+    console.log("isExistingUserName:", isExistingUserName);
+
+    if (isExistingEmail) {
+      throw new appError(httpStatus.CONFLICT, request.t("user.EMAIL_EXISTENT"));
+    }
+    if (isExistingUserName) {
+      throw new appError(httpStatus.CONFLICT, request.t("user.UserName_EXISTENT"));
+    }
+  } catch (findError) {
+    console.error("Error checking existing user:", findError);
+    console.error("Error checking existing user (stringified):", JSON.stringify(findError, null, 2));
+    throw findError; // Re-throw the error
+  }
+
+
+  let updatedUser;
+  try { // Wrap the database operation in a try-catch
+      if (role === constants.ROLES.TEACHER) {
+          updatedUser = await User.findByIdAndUpdate(
+              request.user.id,
+              {
+                  name,
+                  email: Email,
+                  userName,
+                  mobileNo,
+                  profileImage: profileImg,
+                  isOnboarded: true,
+                  teacherIdCard,
+                  teacherId,
+                  role: constants.ROLES.TEACHER,
+                  bio,
+                  youtubeUrl,
+                  xUrl,
+                  instagramUrl,
+                  nearByVisible,
+                  locationSharing,
+              },
+              { new: true }
+          );
+      } else {
+          updatedUser = await User.findByIdAndUpdate(
+              request.user.id,
+              {
+                  name,
+                  email: Email,
+                  mobileNo,
+                  userName,
+                  profileImage: profileImg,
+                  isOnboarded: true,
+                  bio,
+                  role: constants.ROLES.USER,
+                  youtubeUrl,
+                  xUrl,
+                  instagramUrl,
+                  nearByVisible,
+                  locationSharing,
+              },
+              { new: true }
+          );
+      }
+      console.log("onBoardUser: Updated user data:", updatedUser);
+  } catch (dbError) {
+      console.error("Database update error in onBoardUser:", dbError);
+      console.error("Database update error (stringified):", JSON.stringify(dbError, null, 2));
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Database error: " + dbError.message);
+  }
+
+  return updatedUser;
+};
+
+const generateToken = async (req, res) => {
+  try {
+    const refreshToken = req.body.refreshToken;
+    if (!refreshToken) {
       return createResponse(
-        response, 
-        httpStatus.BAD_REQUEST, 
-        "Missing required files or data"
+        res,
+        httpStatus.UNAUTHORIZED,
+        "Refresh token is required"
       );
     }
 
-    const data = await userService.onBoardUser(request);
-    return createResponse(
-      response,
-      httpStatus.OK,
-      request.t("user.USER_ONBOARDED"),
-      data
-    );
-  } catch (error) {
-    console.error("Comprehensive Onboarding Error:", {
-      message: error.message,
-      stack: error.stack,
-      requestBody: request.body,
-      requestFiles: request.files,
-      errorName: error.name,
-      errorCode: error.code
-    });
+    jwt.verify(
+      refreshToken,
+      process.env.JWT_SECRET,
+      async (error, decoded) => {
+        if (error) {
+          console.error("Refresh token verification error:", error);
+          return createResponse(
+            res,
+            httpStatus.UNAUTHORIZED,
+            "Invalid or expired refresh token"
+          );
+        }
 
-    // More granular error response
-    return createResponse(
-      response,
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Detailed onboarding process failed",
-      { 
-        errorDetails: {
-          name: error.name,
-          code: error.code
+        try {
+          const isUser = await User.findOne({ _id: decoded.id, role: decoded.role });
+          if (!isUser) {
+            console.error("User not found for refresh token:", decoded.id);
+            return createResponse(res, httpStatus.UNAUTHORIZED, "User not found");
+          }
+          if (isUser?.status === STATUS.DEACTIVE) {
+            return createResponse(res, httpStatus.FORBIDDEN, "Deactivated account");
+          }
+          if (isUser?.status === STATUS.DELETED) {
+            return createResponse(res, httpStatus.GONE, "Deleted account");
+          }
+
+          const user = await createToken(isUser); // Pass the found user object
+          const tokens = {
+            role: user.role,
+            accessToken: user.accessToken,
+            accessTokenExpiresAt: user.accessTokenExpiresAt,
+            refreshToken: user.refreshToken,
+            refreshTokenExpiresAt: user.refreshTokenExpiresAt,
+          };
+          return createResponse(
+            res,
+            httpStatus.OK,
+            "New access token generated",
+            tokens
+          );
+        } catch (dbError) {
+          console.error("Database error in refresh token process:", dbError);
+          return createResponse(res, httpStatus.INTERNAL_SERVER_ERROR, "Database error");
         }
       }
     );
-  }
-};
-
-const onBoardUser = async (request) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { name, email, userName, mobileNo, bio, teacherId, role } = request.body;
-
-    // Validate required fields
-    if (!name || !email || !userName || !mobileNo) {
-      throw new appError(
-        httpStatus.BAD_REQUEST,
-        "Missing required fields"
-      );
-    }
-
-    // Normalize and validate input
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedUsername = userName.trim();
-    
-    // Validate email format
-    if (!normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      throw new appError(
-        httpStatus.BAD_REQUEST,
-        "Invalid email format"
-      );
-    }
-
-    // Handle file paths with null checks
-    const profileImg = request.files?.profileImage?.[0]?.location || "";
-    const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
-
-    // Validate profile image
-    if (!profileImg) {
-      throw new appError(
-        httpStatus.BAD_REQUEST,
-        "Profile image is required"
-      );
-    }
-
-    // Check for existing user
-    const existingUser = await User.findOne({
-      $or: [
-        { email: normalizedEmail },
-        { userName: normalizedUsername }
-      ],
-      _id: { $ne: request.user?.id }
-    }).session(session);
-
-    if (existingUser) {
-      throw new appError(
-        httpStatus.CONFLICT,
-        existingUser.email === normalizedEmail
-          ? "Email already exists"
-          : "Username already exists"
-      );
-    }
-
-    // Prepare update data
-    const updateData = {
-      name: name.trim(),
-      email: normalizedEmail,
-      userName: normalizedUsername,
-      mobileNo: mobileNo.toString(),
-      profileImage: profileImg,
-      isOnboarded: true,
-      bio: bio?.trim() || "",
-      role: role === ROLES.TEACHER ? ROLES.TEACHER : ROLES.USER
-    };
-
-    // Add teacher-specific fields
-    if (role === ROLES.TEACHER) {
-      if (!teacherId || !teacherIdCard) {
-        throw new appError(
-          httpStatus.BAD_REQUEST,
-          "Teacher ID and ID card are required for teacher role"
-        );
-      }
-      updateData.teacherIdCard = teacherIdCard;
-      updateData.teacherId = teacherId;
-    }
-
-    // Ensure user exists before update
-    const userExists = await User.findById(request.user?.id).session(session);
-    if (!userExists) {
-      throw new appError(
-        httpStatus.NOT_FOUND,
-        "User not found"
-      );
-    }
-
-    // Update the user with all collected changes
-    const updatedUser = await User.findByIdAndUpdate(
-      request.user.id,
-      updateData,
-      {
-        new: true,
-        runValidators: true,
-        session
-      }
-    );
-
-    if (!updatedUser) {
-      throw new appError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        "Failed to update user"
-      );
-    }
-
-    await session.commitTransaction();
-    return updatedUser;
-
   } catch (error) {
-    await session.abortTransaction();
-    
-    // Log detailed error information
-    console.error('Onboarding Error:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code,
-      requestBody: request.body
-    });
-    
-    // Clean up uploaded files if there's an error
-    if (request.files && Object.keys(request.files).length > 0) {
-      try {
-        const filesToDelete = [
-          request.files?.profileImage?.[0]?.location,
-          request.files?.teacherIdCard?.[0]?.location
-        ].filter(Boolean);
-        
-        await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
-      } catch (cleanupError) {
-        console.error('File cleanup error:', cleanupError);
-      }
-    }
-
-    // Rethrow the original error
-    throw error;
-  } finally {
-    await session.endSession();
-  }
-};
-// Express middleware for request validation
-const validateOnboardRequest = async (req, res, next) => {
-  try {
-    const { name, email, userName, mobileNo, role } = req.body;
-
-    // Basic field validation
-    if (!name?.trim() || !email?.trim() || !userName?.trim() || !mobileNo) {
-      return createResponse(
-        res,
-        httpStatus.BAD_REQUEST,
-        "All fields are required: name, email, userName, mobileNo"
-      );
-    }
-
-    // Email validation
-    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      return createResponse(
-        res,
-        httpStatus.BAD_REQUEST,
-        "Invalid email format"
-      );
-    }
-
-    // Mobile number validation
-    if (!mobileNo.toString().match(/^\d{10}$/)) {
-      return createResponse(
-        res,
-        httpStatus.BAD_REQUEST,
-        "Mobile number must be 10 digits"
-      );
-    }
-
-    // Username validation
-    if (!userName.match(/^[a-zA-Z0-9_]{3,30}$/)) {
-      return createResponse(
-        res,
-        httpStatus.BAD_REQUEST,
-        "Username must be 3-30 characters long and can only contain letters, numbers, and underscores"
-      );
-    }
-
-    // Role validation
-    if (role && !Object.values(ROLES).includes(role)) {
-      return createResponse(
-        res,
-        httpStatus.BAD_REQUEST,
-        "Invalid role specified"
-      );
-    }
-
-    next();
-  } catch (error) {
-    console.error("Validation Error:", error);
+    console.error("General error in refresh token process:", error);
     return createResponse(
       res,
-      httpStatus.BAD_REQUEST,
-      "Invalid request data"
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Internal Server Error"
     );
   }
 };
+
+
+
 async function addTeacherRole(request, params) {
   try {
     const user = await User.findById(request.user.id);
@@ -470,135 +399,85 @@ async function addTeacherRole(request, params) {
 }
 
 async function updateUser(params, request) {
+  const currentUser = request.user;
   try {
-    // Find the current user
     const user = await User.findById(request.user.id);
-    if (!user) {
-      throw new appError(
-        httpStatus.NOT_FOUND,
-        "User not found"
-      );
-    }
-
-    // Create update object
-    const updates = {};
-    
-    // Handle email update
-    if (params.email) {
-      const normalizedEmail = params.email.toLowerCase().trim();
-      if (normalizedEmail !== user.email) {
-        const emailExists = await User.findOne({ 
-          email: normalizedEmail,
-          _id: { $ne: request.user.id }
-        });
-        
-        if (emailExists) {
+    if (user) {
+      if (!isEmpty(params.email)) {
+        const emailedUser = await User.findOne({ email: params.email });
+        if (isEmpty(emailedUser)) {
+          user.email = params.email;
+          await user.save();
+        } else {
           throw new appError(
             httpStatus.CONFLICT,
-            "Email already exists"
+            request.t("user.EMAIL_EXISTENT")
           );
         }
-        updates.email = normalizedEmail;
       }
-    }
-
-    // Handle mobile number update
-    if (params.mobileNo && params.countryCode) {
-      if (params.mobileNo !== user.mobileNo || params.countryCode !== user.countryCode) {
-        const mobileExists = await User.findOne({
+      if (params.isTeacher) {
+        user.teacherId = params.teacherId;
+        await user.save();
+      }
+      if (
+        !isEmpty(params.mobileNo) &&
+        !isEmpty(params.countryCode) &&
+        params.mobileNo != currentUser.mobileNo
+      ) {
+        const mobiledUser = await User.findOne({
           mobileNo: params.mobileNo,
           countryCode: params.countryCode,
-          _id: { $ne: request.user.id }
         });
-
-        if (mobileExists) {
+        if (isEmpty(mobiledUser)) {
+          user.mobileNo = params.mobileNo;
+          user.countryCode = params.countryCode;
+          await user.save();
+        } else {
           throw new appError(
             httpStatus.CONFLICT,
-            "Mobile number already exists"
+            request.t("user.MOBILE_EXISTENT")
           );
         }
-        updates.mobileNo = params.mobileNo;
-        updates.countryCode = params.countryCode;
       }
-    }
-
-    // Handle username update
-    if (params.userName && params.userName !== user.userName) {
-      const usernameExists = await User.findOne({
-        userName: params.userName,
-        _id: { $ne: request.user.id },
-        deletedAt: null
-      });
-
-      if (usernameExists) {
-        throw new appError(
-          httpStatus.CONFLICT,
-          "Username already exists"
-        );
+      if (!isEmpty(params.fullName)) {
+        user.fullName = params.fullName;
+        await user.save();
       }
-      updates.userName = params.userName;
-    }
 
-    // Handle other basic updates
-    if (params.fullName) updates.fullName = params.fullName.trim();
-    if (params.location) updates.location = params.location;
-    
-    // Handle teacher-specific updates
-    if (params.isTeacher && params.teacherId) {
-      if (!user.role || user.role !== ROLES.TEACHER) {
-        throw new appError(
-          httpStatus.BAD_REQUEST,
-          "Cannot update teacher ID for non-teacher user"
-        );
+      if (
+        !isEmpty(params.userName) &&
+        params.userName != currentUser.userName
+      ) {
+        const userWithUserName = await User.findOne({
+          userName: params.userName,
+          deletedAt: null,
+        });
+        if (isEmpty(userWithUserName)) {
+          user.userName = params.userName;
+        } else {
+          throw new appError(
+            httpStatus.CONFLICT,
+            request.t("user.USER_NAME_EXISTENT")
+          );
+        }
       }
-      updates.teacherId = params.teacherId;
-    }
-
-    // If no updates were provided
-    if (Object.keys(updates).length === 0) {
-      return { data: user };
-    }
-
-    // Update the user with all collected changes
-    const updatedUser = await User.findByIdAndUpdate(
-      request.user.id,
-      { $set: updates },
-      { 
-        new: true,
-        runValidators: true
+      if (!isEmpty(params.location)) {
+        user.location = params.location;
       }
-    );
-
-    if (!updatedUser) {
+      await user.save();
+      returnVal.data = user;
+    } else {
       throw new appError(
         httpStatus.NOT_FOUND,
-        "User not found"
+        request.t("user.USER_NOT_FOUND")
       );
     }
-
-    return { data: updatedUser };
-
+    return returnVal;
   } catch (error) {
-    // Handle mongoose validation errors
-    if (error.name === 'ValidationError') {
-      throw new appError(
-        httpStatus.BAD_REQUEST,
-        Object.values(error.errors).map(err => err.message).join(', ')
-      );
-    }
-    
-    // Re-throw known application errors
-    if (error instanceof appError) {
-      throw error;
-    }
-
-    // Handle unexpected errors
-    throw new appError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "An error occurred while updating user"
-    );
+    throw new appError(error.status, error.message);
   }
 }
+
 async function getUser(currentUser) {
   return await User.findById(currentUser);
 }
@@ -724,79 +603,6 @@ const getNearbyVisibleUsers = async (longitude, latitude, radius = 1000) => {
   }
 };
 
-
-const updateUserService = async (request) => {
-  return await User.findByIdAndUpdate(request.params.userId,
-    { ...request.body },
-    { new: true }
-  )
-};
-
-
-const searchAllUserService = async (request) => {
-  try {
-    const { userName } = request.query;
-
-    let filter = {};
-
-    // If userName is provided, create a regex for case-insensitive search
-    if (userName) {
-      const query = userName.trim();
-      filter["userName"] = { $regex: new RegExp(query, "i") };
-    }
-
-    // Fetch users based on the filter
-    const users = await User.find(filter);
-
-    // Return the filtered or complete user list
-    return {
-      message: "User.EditUser",
-      data: users,
-    };
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    throw new Error("User not found");
-  }
-};
-
-const checkUserRoleService = async (request) => {
-  try {
-    const { userName } = request.query;
-    if (!userName) {
-      throw new Error("Username is required");
-    }
-
-    const query = userName.trim();
-    const user = await User.findOne({ userName: { $regex: new RegExp(`^${query}$`, "i") } });
-
-    if (!user) {
-      return {
-        message: "No teacher found with the provided teacherName.",
-      };
-    }
-
-    if (user.role === constants.ROLES.TEACHER) {
-      return {
-        message: "User found",
-        data: {
-          userName: user.userName,
-          email: user.email,
-          teacherId: user.teacherId,
-          id: user._id,
-        },
-      };
-    } else {
-      return {
-        message: "User is not a teacher",
-      };
-    }
-  } catch (error) {
-    console.error("Error checking user role:", error);
-    throw new Error(error.message || "An error occurred while checking the user role");
-  }
-};
-
-
 module.exports = {
   userLoginService,
   updateLocation,
@@ -811,11 +617,838 @@ module.exports = {
   verifyOtp,
   getTeachersRequest,
   locationSharing,
-  updateSocialMediaLinks,
+  updateSocialMediaLinks,generateToken,
   getSocialMedia,
   getNearbyVisibleUsers,
-  updateUserService,
-  searchAllUserService,
-  checkUserRoleService
-
 };
+
+
+
+
+
+
+
+
+
+
+// const { isEmpty, generateJWT } = require("../../common/utils/app_functions");
+// const User = require("../../models/user");
+// const appError = require("../../common/utils/appError");
+// const httpStatus = require("../../common/utils/status.json");
+// const { createToken } = require("../../middleware/genrateTokens");
+// const { ROLES } = require("../../common/utils/constants");
+// const { encode, decode } = require("../../common/utils/crypto");
+// const { generateOTP } = require("../../common/utils/helpers");
+// const { uploadToS3, deleteFromS3 } = require("../../common/utils/uploadToS3");
+// const constants = require("../../common/utils/constants");
+// const sendSms = require("../../common/utils/messageService");
+// const OtpRecord = require('../../models/otp');
+// const { request } = require("express");
+// const Twilio = require('twilio');
+
+
+// function AddMinutesToDate(date, minutes) {
+//   return new Date(date.getTime() + minutes * 60000);
+// }
+
+// // Initialize Twilio client
+// const twilioClient = Twilio(
+//   process.env.TWILIO_ACCOUNT_SID,
+//   process.env.TWILIO_AUTH_TOKEN
+// );
+
+// // After (correct initialization)
+// const client = new Twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// const userLoginService = async (request) => {
+//   try {
+//     const { mobileNo, countryCode } = request.body;
+
+//     // Validate required fields
+//     if (!mobileNo || !countryCode) {
+//       throw new appError(httpStatus.BAD_REQUEST, "Mobile number and country code are required");
+//     }
+
+//     // Validate if TWILIO_VERIFY_SID exists
+//     if (!process.env.TWILIO_VERIFY_SID) {
+//       throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Twilio Verify Service not configured");
+//     }
+
+//     // Use Twilio Verify API to send OTP
+//     try {
+//       const formattedNumber = `${
+//         countryCode.startsWith('+') ? countryCode : `+${countryCode}`
+//       }${mobileNo}`;
+      
+//       const verification = await client.verify.v2
+//         .services(process.env.TWILIO_VERIFY_SID)
+//         .verifications
+//         .create({
+//           to: formattedNumber,
+//           channel: 'sms'
+//         });
+
+//       // Save OTP record for cooldown tracking
+//       await OtpRecord.create({
+//         mobileNo,
+//         countryCode,
+//         createdAt: new Date(),
+//       });
+
+//       return { data: { message: "OTP sent successfully" } };
+//     } catch (twilioError) {
+//       console.error('Twilio API Error:', twilioError);
+//       if (twilioError.code === 60200) {
+//         throw new appError(httpStatus.BAD_REQUEST, "Invalid phone number format");
+//       }
+//       throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send OTP: " + twilioError.message);
+//     }
+//   } catch (error) {
+//     console.error('Service Error:', error);
+//     throw error;
+//   }
+// };
+
+// const verifyOtp = async (request) => {
+//   const { mobileNo, otp, deviceToken } = request.body;
+
+//   try {
+//     // 1. Validate required fields
+//     if (!mobileNo || !otp) {
+//       throw new appError(httpStatus.BAD_REQUEST, "Mobile number and OTP are required");
+//     }
+
+//     // 2. Validate OTP format (6-digit string)
+//     if (!/^\d{6}$/.test(otp)) {
+//       throw new appError(httpStatus.BAD_REQUEST, "OTP must be 6 numeric digits");
+//     }
+
+//     // 3. Validate Indian phone number format
+//     if (!/^\d{10}$/.test(mobileNo)) {
+//       throw new appError(
+//         httpStatus.BAD_REQUEST,
+//         "Invalid phone number. Use 10-digit Indian number (e.g., 8291541168)"
+//       );
+//     }
+
+//     // 4. Force E.164 format for Twilio
+//     const twilioPhoneNumber = `+91${mobileNo}`;
+
+//     // 5. Verify with Twilio
+//     const verificationCheck = await twilioClient.verify.v2
+//       .services(process.env.TWILIO_VERIFY_SID)
+//       .verificationChecks.create({
+//         to: twilioPhoneNumber,
+//         code: otp
+//       });
+
+//     // 6. Check verification status
+//     if (verificationCheck.status !== "approved") {
+//       throw new appError(httpStatus.UNAUTHORIZED, "Invalid or expired OTP");
+//     }
+
+//     // 7. Find/Create user
+//     let user = await User.findOne({ mobileNo });
+
+//     // New user creation
+//     if (!user) {
+//       user = await User.create({
+//         mobileNo,
+//         deviceTokens: deviceToken ? [deviceToken] : [],
+//       });
+//     }
+//     // Existing user - update device token
+//     else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
+//       user.deviceTokens.push(deviceToken);
+//       await user.save();
+//     }
+
+//     // 8. Generate JWT and ensure it exists
+//     const tokenData = await createToken(user);
+//     if (!tokenData || !tokenData.accessToken) {
+//       throw new appError(
+//         httpStatus.INTERNAL_SERVER_ERROR,
+//         "Failed to generate authentication token"
+//       );
+//     }
+
+//     // 9. Return response with guaranteed token data
+//     return {
+//       success: true,
+//       message: "OTP verified successfully",
+//       data: {
+//         role: user.role,
+//         accessToken: tokenData.accessToken,
+//         accessTokenExpiresAt: tokenData.accessTokenExpiresAt.toISOString(),
+//         refreshToken: tokenData.refreshToken,
+//         refreshTokenExpiresAt: tokenData.refreshTokenExpiresAt.toISOString(),
+//         user: {
+//           _id: user._id,
+//           mobileNo: user.mobileNo,
+//           role: user.role,
+//           createdAt: user.createdAt,
+//           updatedAt: user.updatedAt
+//         }
+//       }
+//     };
+
+//   } catch (error) {
+//     // Handle Twilio errors
+//     if (error.code === 60200) {
+//       throw new appError(
+//         httpStatus.BAD_REQUEST,
+//         "Invalid phone number format. Contact support."
+//       );
+//     }
+
+//     // Handle known operational errors
+//     if (error instanceof appError) {
+//       throw error;
+//     }
+
+//     // Generic error fallback
+//     throw new appError(
+//       error.statusCode || httpStatus.INTERNAL_SERVER_ERROR,
+//       error.message || "OTP verification failed"
+//     );
+//   }
+// };
+
+// const updateLocation = async (request) => {
+//   const { lat, long, location } = request.body;
+
+//   return await User.findByIdAndUpdate(
+//     request.user.id,
+//     {
+//       location: location,
+//       latlong: {
+//         type: "Point",
+//         coordinates: [parseFloat(long), parseFloat(lat)],
+//       },
+//     },
+//     {
+//       new: true,
+//     }
+//   );
+// };
+
+// const onBoardUserController = async (request, response) => {
+//   try {
+//     // Validate request before processing
+//     if (!request.body || !request.files) {
+//       return createResponse(
+//         response, 
+//         httpStatus.BAD_REQUEST, 
+//         "Missing required files or data"
+//       );
+//     }
+
+//     const data = await userService.onBoardUser(request);
+//     return createResponse(
+//       response,
+//       httpStatus.OK,
+//       request.t("user.USER_ONBOARDED"),
+//       data
+//     );
+//   } catch (error) {
+//     console.error("Comprehensive Onboarding Error:", {
+//       message: error.message,
+//       stack: error.stack,
+//       requestBody: request.body,
+//       requestFiles: request.files,
+//       errorName: error.name,
+//       errorCode: error.code
+//     });
+
+//     // More granular error response
+//     return createResponse(
+//       response,
+//       error.status || httpStatus.INTERNAL_SERVER_ERROR,
+//       error.message || "Detailed onboarding process failed",
+//       { 
+//         errorDetails: {
+//           name: error.name,
+//           code: error.code
+//         }
+//       }
+//     );
+//   }
+// };
+
+// const onBoardUser = async (request) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const { name, email, userName, mobileNo, bio, teacherId, role } = request.body;
+
+//     // Validate required fields
+//     if (!name || !email || !userName || !mobileNo) {
+//       throw new appError(
+//         httpStatus.BAD_REQUEST,
+//         "Missing required fields"
+//       );
+//     }
+
+//     // Normalize and validate input
+//     const normalizedEmail = email.toLowerCase().trim();
+//     const normalizedUsername = userName.trim();
+    
+//     // Validate email format
+//     if (!normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+//       throw new appError(
+//         httpStatus.BAD_REQUEST,
+//         "Invalid email format"
+//       );
+//     }
+
+//     // Handle file paths with null checks
+//     const profileImg = request.files?.profileImage?.[0]?.location || "";
+//     const teacherIdCard = request.files?.teacherIdCard?.[0]?.location || "";
+
+//     // Validate profile image
+//     if (!profileImg) {
+//       throw new appError(
+//         httpStatus.BAD_REQUEST,
+//         "Profile image is required"
+//       );
+//     }
+
+//     // Check for existing user
+//     const existingUser = await User.findOne({
+//       $or: [
+//         { email: normalizedEmail },
+//         { userName: normalizedUsername }
+//       ],
+//       _id: { $ne: request.user?.id }
+//     }).session(session);
+
+//     if (existingUser) {
+//       throw new appError(
+//         httpStatus.CONFLICT,
+//         existingUser.email === normalizedEmail
+//           ? "Email already exists"
+//           : "Username already exists"
+//       );
+//     }
+
+//     // Prepare update data
+//     const updateData = {
+//       name: name.trim(),
+//       email: normalizedEmail,
+//       userName: normalizedUsername,
+//       mobileNo: mobileNo.toString(),
+//       profileImage: profileImg,
+//       isOnboarded: true,
+//       bio: bio?.trim() || "",
+//       role: role === ROLES.TEACHER ? ROLES.TEACHER : ROLES.USER
+//     };
+
+//     // Add teacher-specific fields
+//     if (role === ROLES.TEACHER) {
+//       if (!teacherId || !teacherIdCard) {
+//         throw new appError(
+//           httpStatus.BAD_REQUEST,
+//           "Teacher ID and ID card are required for teacher role"
+//         );
+//       }
+//       updateData.teacherIdCard = teacherIdCard;
+//       updateData.teacherId = teacherId;
+//     }
+
+//     // Ensure user exists before update
+//     const userExists = await User.findById(request.user?.id).session(session);
+//     if (!userExists) {
+//       throw new appError(
+//         httpStatus.NOT_FOUND,
+//         "User not found"
+//       );
+//     }
+
+//     // Update the user with all collected changes
+//     const updatedUser = await User.findByIdAndUpdate(
+//       request.user.id,
+//       updateData,
+//       {
+//         new: true,
+//         runValidators: true,
+//         session
+//       }
+//     );
+
+//     if (!updatedUser) {
+//       throw new appError(
+//         httpStatus.INTERNAL_SERVER_ERROR,
+//         "Failed to update user"
+//       );
+//     }
+
+//     await session.commitTransaction();
+//     return updatedUser;
+
+//   } catch (error) {
+//     await session.abortTransaction();
+    
+//     // Log detailed error information
+//     console.error('Onboarding Error:', {
+//       message: error.message,
+//       stack: error.stack,
+//       name: error.name,
+//       code: error.code,
+//       requestBody: request.body
+//     });
+    
+//     // Clean up uploaded files if there's an error
+//     if (request.files && Object.keys(request.files).length > 0) {
+//       try {
+//         const filesToDelete = [
+//           request.files?.profileImage?.[0]?.location,
+//           request.files?.teacherIdCard?.[0]?.location
+//         ].filter(Boolean);
+        
+//         await Promise.all(filesToDelete.map(file => deleteFromS3(file)));
+//       } catch (cleanupError) {
+//         console.error('File cleanup error:', cleanupError);
+//       }
+//     }
+
+//     // Rethrow the original error
+//     throw error;
+//   } finally {
+//     await session.endSession();
+//   }
+// };
+// // Express middleware for request validation
+// const validateOnboardRequest = async (req, res, next) => {
+//   try {
+//     const { name, email, userName, mobileNo, role } = req.body;
+
+//     // Basic field validation
+//     if (!name?.trim() || !email?.trim() || !userName?.trim() || !mobileNo) {
+//       return createResponse(
+//         res,
+//         httpStatus.BAD_REQUEST,
+//         "All fields are required: name, email, userName, mobileNo"
+//       );
+//     }
+
+//     // Email validation
+//     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+//       return createResponse(
+//         res,
+//         httpStatus.BAD_REQUEST,
+//         "Invalid email format"
+//       );
+//     }
+
+//     // Mobile number validation
+//     if (!mobileNo.toString().match(/^\d{10}$/)) {
+//       return createResponse(
+//         res,
+//         httpStatus.BAD_REQUEST,
+//         "Mobile number must be 10 digits"
+//       );
+//     }
+
+//     // Username validation
+//     if (!userName.match(/^[a-zA-Z0-9_]{3,30}$/)) {
+//       return createResponse(
+//         res,
+//         httpStatus.BAD_REQUEST,
+//         "Username must be 3-30 characters long and can only contain letters, numbers, and underscores"
+//       );
+//     }
+
+//     // Role validation
+//     if (role && !Object.values(ROLES).includes(role)) {
+//       return createResponse(
+//         res,
+//         httpStatus.BAD_REQUEST,
+//         "Invalid role specified"
+//       );
+//     }
+
+//     next();
+//   } catch (error) {
+//     console.error("Validation Error:", error);
+//     return createResponse(
+//       res,
+//       httpStatus.BAD_REQUEST,
+//       "Invalid request data"
+//     );
+//   }
+// };
+// async function addTeacherRole(request, params) {
+//   try {
+//     const user = await User.findById(request.user.id);
+//     if (user) {
+//       return await User.findByIdAndUpdate(
+//         request.user.id,
+//         {
+//           teacherId: params.teacherId,
+//           teacherIdCard: params.teacherIdCard[0].link,
+//           role: ROLES.TEACHER,
+//         },
+//         { new: true }
+//       );
+//     } else {
+//       throw new appError(
+//         httpStatus.NOT_FOUND,
+//         request.t("user.USER_NOT_FOUND")
+//       );
+//     }
+//   } catch (error) {
+//     throw new appError(httpStatus.INTERNAL_SERVER_ERROR, error.message);
+//   }
+// }
+
+// async function updateUser(params, request) {
+//   try {
+//     // Find the current user
+//     const user = await User.findById(request.user.id);
+//     if (!user) {
+//       throw new appError(
+//         httpStatus.NOT_FOUND,
+//         "User not found"
+//       );
+//     }
+
+//     // Create update object
+//     const updates = {};
+    
+//     // Handle email update
+//     if (params.email) {
+//       const normalizedEmail = params.email.toLowerCase().trim();
+//       if (normalizedEmail !== user.email) {
+//         const emailExists = await User.findOne({ 
+//           email: normalizedEmail,
+//           _id: { $ne: request.user.id }
+//         });
+        
+//         if (emailExists) {
+//           throw new appError(
+//             httpStatus.CONFLICT,
+//             "Email already exists"
+//           );
+//         }
+//         updates.email = normalizedEmail;
+//       }
+//     }
+
+//     // Handle mobile number update
+//     if (params.mobileNo && params.countryCode) {
+//       if (params.mobileNo !== user.mobileNo || params.countryCode !== user.countryCode) {
+//         const mobileExists = await User.findOne({
+//           mobileNo: params.mobileNo,
+//           countryCode: params.countryCode,
+//           _id: { $ne: request.user.id }
+//         });
+
+//         if (mobileExists) {
+//           throw new appError(
+//             httpStatus.CONFLICT,
+//             "Mobile number already exists"
+//           );
+//         }
+//         updates.mobileNo = params.mobileNo;
+//         updates.countryCode = params.countryCode;
+//       }
+//     }
+
+//     // Handle username update
+//     if (params.userName && params.userName !== user.userName) {
+//       const usernameExists = await User.findOne({
+//         userName: params.userName,
+//         _id: { $ne: request.user.id },
+//         deletedAt: null
+//       });
+
+//       if (usernameExists) {
+//         throw new appError(
+//           httpStatus.CONFLICT,
+//           "Username already exists"
+//         );
+//       }
+//       updates.userName = params.userName;
+//     }
+
+//     // Handle other basic updates
+//     if (params.fullName) updates.fullName = params.fullName.trim();
+//     if (params.location) updates.location = params.location;
+    
+//     // Handle teacher-specific updates
+//     if (params.isTeacher && params.teacherId) {
+//       if (!user.role || user.role !== ROLES.TEACHER) {
+//         throw new appError(
+//           httpStatus.BAD_REQUEST,
+//           "Cannot update teacher ID for non-teacher user"
+//         );
+//       }
+//       updates.teacherId = params.teacherId;
+//     }
+
+//     // If no updates were provided
+//     if (Object.keys(updates).length === 0) {
+//       return { data: user };
+//     }
+
+//     // Update the user with all collected changes
+//     const updatedUser = await User.findByIdAndUpdate(
+//       request.user.id,
+//       { $set: updates },
+//       { 
+//         new: true,
+//         runValidators: true
+//       }
+//     );
+
+//     if (!updatedUser) {
+//       throw new appError(
+//         httpStatus.NOT_FOUND,
+//         "User not found"
+//       );
+//     }
+
+//     return { data: updatedUser };
+
+//   } catch (error) {
+//     // Handle mongoose validation errors
+//     if (error.name === 'ValidationError') {
+//       throw new appError(
+//         httpStatus.BAD_REQUEST,
+//         Object.values(error.errors).map(err => err.message).join(', ')
+//       );
+//     }
+    
+//     // Re-throw known application errors
+//     if (error instanceof appError) {
+//       throw error;
+//     }
+
+//     // Handle unexpected errors
+//     throw new appError(
+//       httpStatus.INTERNAL_SERVER_ERROR,
+//       "An error occurred while updating user"
+//     );
+//   }
+// }
+// async function getUser(currentUser) {
+//   return await User.findById(currentUser);
+// }
+
+// async function getAllUsers() {
+//   return await User.aggregate([{ $match: { deletedAt: null } }]);
+// }
+
+// async function getUserAddress(request) {
+//   return await User.findById(request.user.id).select("address -_id");
+// }
+
+// async function getAllTeachers() {
+//   return await User.find({ role: ROLES.TEACHER });
+// }
+
+// async function actionOnTeacherAccount(request) {
+//   let { status, id } = request.query;
+
+//   try {
+//     const user = await User.findById(id);
+//     if (!user) {
+//       throw new appError(
+//         httpStatus.NOT_FOUND,
+//         request.t("user.TEACHER_NOT_FOUND")
+//       );
+//     }
+
+//     return await User.findByIdAndUpdate(
+//       id,
+//       {
+//         teacherRoleApproved: status,
+//         teacherRequestHandledBy: request.user.id,
+//       },
+//       { new: true }
+//     );
+//   } catch (error) {
+//     throw new appError(error.status, error.message);
+//   }
+// }
+
+// async function getTeachersRequest(request) {
+//   try {
+//     return await User.find({
+//       role: constants.ROLES.TEACHER,
+//       teacherRoleApproved: constants.STATUS.PENDING,
+//     });
+//   } catch (error) {
+//     throw new appError(error.status, error.message);
+//   }
+// }
+
+// async function uploadDocuments(params, request) {
+//   try {
+//     const user = await User.findById(request.user.id);
+//     if (user) {
+//       user.profileImageUrl = params[0].link;
+//       await user.save();
+//       return user;
+//     } else {
+//       throw new appError(
+//         httpStatus.NOT_FOUND,
+//         request.t("user.USER_NOT_FOUND")
+//       );
+//     }
+//   } catch (error) {
+//     throw new appError(error.status, error.message);
+//   }
+// }
+
+// async function updateSocialMediaLinks(request) {
+//   return await User.findByIdAndUpdate(
+//     request.user.id,
+//     { ...request.body },
+//     { new: true }
+//   );
+// }
+
+// async function locationSharing(request) {
+//   return await User.findByIdAndUpdate(
+//     request.user.id,
+//     { ...request.body },
+//     { new: true }
+//   );
+// }
+
+// const getSocialMedia = async (request) => {
+//   try {
+//     const userId = request.params.userId;
+//     const user = await User.findById(userId)
+//     if (!user) {
+//       throw new appError(httpStatus.NOT_FOUND, "User not found");
+//     }
+//     const socialLinks = {
+//       youtube: user.youtubeUrl || null,
+//       x: user.xUrl || null,
+//       instagram: user.instagramUrl || null
+//     };
+//     res.json(socialLinks);
+//     console.log(socialLinks)
+//   } catch (error) {
+//     throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to retrieve social media links");
+//   }
+// };
+
+// const getNearbyVisibleUsers = async (longitude, latitude, radius = 1000) => {
+//   try {
+//     const users = await User.find({
+//       latlong: {
+//         $near: {
+//           $geometry: {
+//             type: "Point",
+//             coordinates: [longitude, latitude],
+//           },
+//           $maxDistance: radius,
+//         },
+//       },
+//     }).select("userName profileImage role")
+
+//     return users;
+//   } catch (error) {
+//     throw new Error("Error fetching nearby users: " + error.message);
+//   }
+// };
+
+
+// const updateUserService = async (request) => {
+//   return await User.findByIdAndUpdate(request.params.userId,
+//     { ...request.body },
+//     { new: true }
+//   )
+// };
+
+
+// const searchAllUserService = async (request) => {
+//   try {
+//     const { userName } = request.query;
+
+//     let filter = {};
+
+//     // If userName is provided, create a regex for case-insensitive search
+//     if (userName) {
+//       const query = userName.trim();
+//       filter["userName"] = { $regex: new RegExp(query, "i") };
+//     }
+
+//     // Fetch users based on the filter
+//     const users = await User.find(filter);
+
+//     // Return the filtered or complete user list
+//     return {
+//       message: "User.EditUser",
+//       data: users,
+//     };
+//   } catch (error) {
+//     console.error("Error fetching users:", error);
+//     throw new Error("User not found");
+//   }
+// };
+
+// const checkUserRoleService = async (request) => {
+//   try {
+//     const { userName } = request.query;
+//     if (!userName) {
+//       throw new Error("Username is required");
+//     }
+
+//     const query = userName.trim();
+//     const user = await User.findOne({ userName: { $regex: new RegExp(`^${query}$`, "i") } });
+
+//     if (!user) {
+//       return {
+//         message: "No teacher found with the provided teacherName.",
+//       };
+//     }
+
+//     if (user.role === constants.ROLES.TEACHER) {
+//       return {
+//         message: "User found",
+//         data: {
+//           userName: user.userName,
+//           email: user.email,
+//           teacherId: user.teacherId,
+//           id: user._id,
+//         },
+//       };
+//     } else {
+//       return {
+//         message: "User is not a teacher",
+//       };
+//     }
+//   } catch (error) {
+//     console.error("Error checking user role:", error);
+//     throw new Error(error.message || "An error occurred while checking the user role");
+//   }
+// };
+
+
+// module.exports = {
+//   userLoginService,
+//   updateLocation,
+//   onBoardUser,
+//   updateUser,
+//   getUser,
+//   uploadDocuments,
+//   addTeacherRole,
+//   getAllUsers,
+//   actionOnTeacherAccount,
+//   getAllTeachers,
+//   verifyOtp,
+//   getTeachersRequest,
+//   locationSharing,
+//   updateSocialMediaLinks,
+//   getSocialMedia,
+//   getNearbyVisibleUsers,
+//   updateUserService,
+//   searchAllUserService,
+//   checkUserRoleService
+
+// };

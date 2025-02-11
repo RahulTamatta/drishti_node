@@ -1,140 +1,124 @@
-
 // utils/tokenService.js
 const jwt = require('jsonwebtoken');
+const User = require('../models/user');
+const createResponse = require('../common/utils/createResponse');
+const httpStatus = require('../common/utils/status.json');
 
 // Environment variables for token expiration and secret
 process.env.JWT_ACCESS_EXPIRATION_MINUTES = 30;
 process.env.JWT_REFRESH_EXPIRATION_DAYS = 7;
-process.env.JWT_SECRET = 'sdkfjsdfklsjfejrfisdldskfvjdlkcnldskfjsklfjsdkjfckvncvnlnkln'; // Move to .env file
+process.env.JWT_SECRET = 'sdkfjsdfklsjfejrfisdldskfvjdlkcnldskfjsklfjsdkjfckvncvnlnkln'; // 
+
+
 
 const createToken = async (user) => {
-  console.debug('[DEBUG] Creating tokens for user:', user);
+  try {
+    console.log('Creating tokens for user:', user._id);
 
-  // Calculate token expiration dates
-  const accessExpiration = new Date(
-    Date.now() + process.env.JWT_ACCESS_EXPIRATION_MINUTES * 60000
-  );
-  const refreshExpiration = new Date(
-    Date.now() + process.env.JWT_REFRESH_EXPIRATION_DAYS * 86400000
-  );
-
-  console.debug('[DEBUG] Access token expiration:', accessExpiration);
-  console.debug('[DEBUG] Refresh token expiration:', refreshExpiration);
-
-  // Generate access token
-  const accessToken = jwt.sign(
-    {
-      id: user._id ? user._id : user.id,
-      role: user.role,
-      type: 'access',
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: '30m',
+    if (!user || !user._id) {
+      throw new Error('Invalid user data for token generation');
     }
-  );
 
-  console.debug('[DEBUG] Access token generated:', accessToken);
+    const accessExpiration = new Date(
+      Date.now() + (process.env.JWT_ACCESS_EXPIRATION_MINUTES || 30) * 60 * 1000
+    );
+    const refreshExpiration = new Date(
+      Date.now() + (process.env.JWT_REFRESH_EXPIRATION_DAYS || 7) * 24 * 60 * 60 * 1000
+    );
 
-  // Generate refresh token
-  const refreshToken = jwt.sign(
-    {
-      id: user._id ? user._id : user.id,
+    const accessToken = jwt.sign(
+      {
+        id: user._id,
+        role: user.role || 'USER',
+        type: 'access'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: `${process.env.JWT_ACCESS_EXPIRATION_MINUTES || 30}m` }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        id: user._id,
+        role: user.role || 'USER',
+        type: 'refresh'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: `${process.env.JWT_REFRESH_EXPIRATION_DAYS || 7}d` }
+    );
+
+    // Save refresh token
+    await User.findByIdAndUpdate(user._id, {
+      $push: {
+        refreshTokens: {
+          token: refreshToken,
+          expiresAt: refreshExpiration
+        }
+      }
+    });
+
+    return {
       role: user.role,
-      type: 'refresh',
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: '7d',
-    }
-  );
-
-  console.debug('[DEBUG] Refresh token generated:', refreshToken);
-
-  // Return token details
-  const tokenData = {
-    role: user.role,
-    accessToken,
-    accessTokenExpiresAt: accessExpiration,
-    refreshToken,
-    refreshTokenExpiresAt: refreshExpiration,
-    user,
-  };
-
-  console.debug('[DEBUG] Token data to be returned:', tokenData);
-
-  return tokenData;
+      accessToken,
+      refreshToken,
+      accessTokenExpiresAt: accessExpiration.toISOString(),
+      refreshTokenExpiresAt: refreshExpiration.toISOString(),
+      user: {
+        id: user._id,
+        mobileNo: user.mobileNo,
+        role: user.role,
+        isOnboarded: user.isOnboarded
+      }
+    };
+  } catch (error) {
+    console.error('Token generation error:', error);
+    throw error;
+  }
 };
 
-// module.exports = {
-//   createToken,
-//   generateToken,
-// };
-
-const generateToken = async (request, response) => {
+const generateToken = async (req, res) => {
   try {
-    const refreshToken = request.body.refreshtoken;
+    const refreshToken = req.body.refreshToken;
     if (!refreshToken) {
-      return createResponse(
-        response,
-        status.UNAUTHORIZED,
-        request.t("auth.NOT_VALID_TOKEN")
-      );
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Refresh token is required");
     }
 
-    return jwt.verify(
-      refreshToken,
-      process.env.JWT_SECRET,
-      async function (error, decoded) {
-        if (error) {
-          if (error.message == "jwt expired") {
-            return createResponse(
-              response,
-              status.UNAUTHORIZED,
-              request.t("auth.TOKEN_EXPIRED")
-            );
-          } else {
-            return createResponse(response, status.UNAUTHORIZED, error);
-          }
+    // Verify refresh token
+    const decoded = await new Promise((resolve, reject) => {
+      jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+          console.error("Refresh token verification error:", err);
+          reject(err);
         }
-        const isUser = await User.findOne({
-          _id: decoded.id,
-          role: decoded.role,
-        });
-        if (isUser?.status === STATUS.DEACTIVE) {
-          return createResponse(
-            response,
-            status.FORBIDDEN,
-            request.t("user.DEACTIVE_ACCOUNT")
-          );
-        }
-        if (isUser?.status === STATUS.DELETED) {
-          return createResponse(
-            response,
-            status.GONE,
-            request.t("user.ACCOUNT_DELETED")
-          );
-        }
-        const user = await createToken(decoded);
-        const tokens = {
-          role: user.role,
-          accessToken: user.accessToken,
-          accessTokenExpire: user.accessTokenExpiresAt,
-          refreshToken: user.refreshToken,
-          refreshTokenExpire: user.refreshTokenExpiresAt,
-        };
-        return createResponse(
-          response,
-          status.OK,
-          request.t("auth.NEW_ACCESS_TOKEN"),
-          tokens
-        );
-      }
-    );
+        resolve(decoded);
+      });
+    });
+
+    // Find user and validate refresh token
+    const user = await User.findOne({
+      _id: decoded.id,
+      'refreshTokens.token': refreshToken,
+      'refreshTokens.expiresAt': { $gt: new Date() }
+    });
+
+    if (!user) {
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid refresh token");
+    }
+
+    // Remove used refresh token
+    await User.findByIdAndUpdate(user._id, {
+      $pull: { refreshTokens: { token: refreshToken } }
+    });
+
+    // Generate new tokens
+    const tokens = await createToken(user);
+
+    return createResponse(res, httpStatus.OK, "New access token generated", tokens);
   } catch (error) {
-    const errorMessage = error.message || "Internal Server Error";
-    const statusCode = error.status || status.INTERNAL_SERVER_ERROR;
-    return createResponse(response, statusCode, errorMessage);
+    console.error("Error in generateToken:", error);
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+    }
+    return createResponse(res, httpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
   }
 };
 
@@ -155,7 +139,7 @@ const verifyResetPasswordToken = (token) => {
 
 module.exports = {
   createToken,
-  // generateResetPasswordToken,
   generateToken,
-  // verifyResetPasswordToken,
+  generateResetPasswordToken,
+  verifyResetPasswordToken,
 };

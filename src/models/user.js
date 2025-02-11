@@ -59,6 +59,10 @@ const userSchema = new mongoose.Schema(
       ref: "User",
     },
     //notificationEnabled: { type: Boolean, default: false },  // New field
+    refreshTokens: [{
+      token: String,
+      expiresAt: Date
+    }]
 
   },
   {
