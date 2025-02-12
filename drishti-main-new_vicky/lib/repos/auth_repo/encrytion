@@ -1,0 +1,31 @@
+import 'package:encrypt/encrypt.dart' as encrypt;
+import 'dart:convert';
+
+class EncryptionUtil {
+  static final key = encrypt.Key.fromUtf8('your32characterkeythatisforsecurity');
+  static final iv = encrypt.IV.fromLength(16);
+  static final encrypter = encrypt.Encrypter(encrypt.AES(key));
+
+  // Method for encrypting data
+  static String encryptData(Map<String, dynamic> data) {
+    try {
+      final jsonString = json.encode(data);
+      final encrypted = encrypter.encrypt(jsonString, iv: iv);
+      return encrypted.base64;
+    } catch (e) {
+      print('Encryption error: $e');
+      throw Exception('Encryption failed: $e');
+    }
+  }
+
+  // Method for decrypting data
+  static String decryptData(String encryptedData) {
+    try {
+      final encrypted = encrypt.Encrypted.fromBase64(encryptedData);
+      return encrypter.decrypt(encrypted, iv: iv);
+    } catch (e) {
+      print('Decryption error: $e');
+      throw Exception('Decryption failed: $e');
+    }
+  }
+}

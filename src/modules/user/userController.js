@@ -6,6 +6,8 @@ const httpStatus = require("../../common/utils/status.json");
 const uploadFilesToBucket = require("../../middleware/uploadTofireBase");
 const User = require('../../models/user');
 const { decode } = require('../../common/utils/crypto');
+const mongoose = require("mongoose");
+
 const { createToken } = require('../../middleware/genrateTokens');
 // const onBoardUser =require("./userService");
 const jwt = require('jsonwebtoken');
@@ -278,170 +280,192 @@ const updateLocationController = async (request, response) => {
 };
 
 const onBoardUserController = async (request, response) => {
-  console.log("onBoardUserController called. Request body:", request.body);
-  if (request.files) {
-    console.log("Files received:", request.files);
-    console.log("Files received (details):", JSON.stringify(request.files)); // Log file details
-  } else {
-    console.log("No files received.");
-  }
-
   try {
-    console.log("Calling onBoardUser..."); // Log before calling onBoardUser
-    const data = await onBoardUser(request);
-    console.log("onBoardUserController: Data returned:", data);
-    console.log("onBoardUserController: Data returned (stringified):", JSON.stringify(data)); // Log stringified data
+    console.log("=== onBoardUserController START ===");
+    console.log("Request headers:", request.headers);
+    console.log("Request body:", request.body);
+    console.log("Request files:", request.files);
 
-    if (!data) {
-      console.log("onBoardUser returned null or undefined. Throwing error."); // Log if data is null/undefined
-      throw new appError(httpStatus.CONFLICT, request.t("user.UNABLE_TO_ONBOARD_USER"));
+    // Validate required fields
+    const requiredFields = ['userName', 'name', 'email', 'mobileNo', 'role'];
+    for (const field of requiredFields) {
+      if (!request.body[field]) {
+        throw new Error(`Missing required field: ${field}`);
+      }
     }
 
-    console.log("Creating success response..."); // Log before creating response
-    createResponse(response, httpStatus.OK, request.t("user.USER_ONBOARDED"), data);
-    console.log("Success response sent."); // Log after sending response
+    // Process the uploaded file
+    let profileImageUrl = '';
+    if (request.files && request.files.profileImage) {
+      console.log("Processing profile image...");
+      const uploadResult = await uploadFilesToBucket([request.files.profileImage[0]]);
+      profileImageUrl = uploadResult[0].link;
+      console.log("Profile image uploaded:", profileImageUrl);
+    }
+
+    // Create update data object
+    const updateData = {
+      userName: request.body.userName,
+      name: request.body.name,
+      email: request.body.email.toLowerCase(),
+      mobileNo: request.body.mobileNo,
+      role: request.body.role,
+      bio: request.body.bio || '',
+      profileImage: profileImageUrl,
+      isOnboarded: true,
+      nearByVisible: request.body.nearByVisible === 'true',
+      locationSharing: request.body.locationSharing === 'true'
+    };
+
+    // Add teacher specific fields if applicable
+    if (request.body.role === 'teacher') {
+      if (!request.body.teacherId) {
+        throw new Error('Teacher ID is required for teacher role');
+      }
+      updateData.teacherId = request.body.teacherId;
+    }
+
+    console.log("Update data:", updateData);
+
+    // Update user in database
+    const updatedUser = await User.findByIdAndUpdate(
+      request.user.id,
+      updateData,
+      { new: true }
+    );
+
+    console.log("Updated user:", updatedUser);
+
+    return createResponse(
+      response,
+      httpStatus.OK,
+      "Profile updated successfully",
+      updatedUser
+    );
 
   } catch (error) {
-    console.error("Error in onBoardUserController:", error); // Log the full error object!
-    console.error("Error in onBoardUserController (stringified):", JSON.stringify(error, null, 2)); // Stringify with indentation for better readability
-
-    const errorMessage = error.message || "Internal Server Error"; // Extract message
-    const errorStatus = error.status || httpStatus.INTERNAL_SERVER_ERROR;
-
-    console.error(`Sending error response: Status ${errorStatus}, Message: ${errorMessage}`);
-    createResponse(response, errorStatus, errorMessage); // Send back the error message
-    console.log("Error response sent."); // Log after sending error response
+    console.error("onBoardUserController Error:", error);
+    return createResponse(
+      response,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to update profile"
+    );
   }
 };
 
+const handleFileUploads = async (files) => {
+  const results = {
+    profileImage: "",
+    teacherIdCard: ""
+  };
 
-
-const onBoardUser = async (request) => {
-  console.log("request.user.id:", request.user.id);
-  console.log("request.user:", request.user);
-  console.log("onBoardUser called. Request body:", request.body);  // Log request body inside
-  console.log("onBoardUser called. Request files:", request.files);  // Log request files inside
-  console.log("onBoardUser called. Request user:", request.user);  // Log request user inside
-  console.log("onBoardUser called. Request user ID:", request.user?.id);  // Log user ID (safely)
-
-
-  const { name, email, userName, mobileNo, bio, teacherId, role, youtubeUrl, xUrl, instagramUrl, nearByVisible, locationSharing } = request.body;
-
-  let profileImg = "";
-  let teacherIdCard = "";
-
-  try {  // Wrap the file upload in a try-catch
-
-    if (request.files && Object.keys(request.files).length !== 0) {
-      const filesToUpload = [];
-      if (request.files.profileImage && request.files.profileImage.length > 0) {
-        filesToUpload.push(request.files.profileImage[0]);
-      }
-      if (request.files.teacherIdCard && request.files.teacherIdCard.length > 0) {
-        filesToUpload.push(request.files.teacherIdCard[0]);
-      }
-
-      if (filesToUpload.length > 0) {
-        const uploadedFiles = await uploadFilesToBucket(filesToUpload);
-        console.log("Uploaded files:", uploadedFiles); // Log the result of the upload
-        uploadedFiles.forEach(file => {
-          if (file.label.startsWith('profileImage')) {
-            profileImg = file.link;
-          } else if (file.label.startsWith('teacherIdCard')) {
-            teacherIdCard = file.link;
-          }
-        });
-      }
-    }
-  } catch (fileUploadError) {
-    console.error("File upload error in onBoardUser:", fileUploadError);
-    console.error("File upload error (stringified):", JSON.stringify(fileUploadError, null, 2));
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed: " + fileUploadError.message);
-  }
-
-
-  const Email = email ? email.toLowerCase() : null; // Handle if email is undefined
+  if (!files) return results;
 
   try {
-    const isExistingEmail = await User.findOne({
-      email: Email,
-      _id: { $ne: request.user.id },
-    });
-    console.log("isExistingEmail:", isExistingEmail);
-
-    const isExistingUserName = await User.findOne({
-      userName: userName,
-      _id: { $ne: request.user.id },
-    });
-    console.log("isExistingUserName:", isExistingUserName);
-
-    if (isExistingEmail) {
-      throw new appError(httpStatus.CONFLICT, request.t("user.EMAIL_EXISTENT"));
+    if (files.profileImage?.[0]) {
+      const uploadResult = await uploadFilesToBucket([files.profileImage[0]]);
+      results.profileImage = uploadResult[0].link;
     }
-    if (isExistingUserName) {
-      throw new appError(httpStatus.CONFLICT, request.t("user.UserName_EXISTENT"));
+    
+    if (files.teacherIdCard?.[0]) {
+      const uploadResult = await uploadFilesToBucket([files.teacherIdCard[0]]);
+      results.teacherIdCard = uploadResult[0].link;
     }
-  } catch (findError) {
-    console.error("Error checking existing user:", findError);
-    console.error("Error checking existing user (stringified):", JSON.stringify(findError, null, 2));
-    throw findError; // Re-throw the error
+  } catch (error) {
+    console.error("File upload error:", error);
+    throw new Error("File upload failed");
   }
 
-
-  let updatedUser;
-  try { // Wrap the database operation in a try-catch
-      if (role === constants.ROLES.TEACHER) {
-          updatedUser = await User.findByIdAndUpdate(
-              request.user.id,
-              {
-                  name,
-                  email: Email,
-                  userName,
-                  mobileNo,
-                  profileImage: profileImg,
-                  isOnboarded: true,
-                  teacherIdCard,
-                  teacherId,
-                  role: constants.ROLES.TEACHER,
-                  bio,
-                  youtubeUrl,
-                  xUrl,
-                  instagramUrl,
-                  nearByVisible,
-                  locationSharing,
-              },
-              { new: true }
-          );
-      } else {
-          updatedUser = await User.findByIdAndUpdate(
-              request.user.id,
-              {
-                  name,
-                  email: Email,
-                  mobileNo,
-                  userName,
-                  profileImage: profileImg,
-                  isOnboarded: true,
-                  bio,
-                  role: constants.ROLES.USER,
-                  youtubeUrl,
-                  xUrl,
-                  instagramUrl,
-                  nearByVisible,
-                  locationSharing,
-              },
-              { new: true }
-          );
-      }
-      console.log("onBoardUser: Updated user data:", updatedUser);
-  } catch (dbError) {
-      console.error("Database update error in onBoardUser:", dbError);
-      console.error("Database update error (stringified):", JSON.stringify(dbError, null, 2));
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Database error: " + dbError.message);
-  }
-
-  return updatedUser;
+  return results;
 };
+
+const onBoardUser = async (userId, userData) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    console.log("=== onBoardUser Service START ===");
+    console.log("User ID:", userId);
+    console.log("User Data:", userData);
+
+    // Validate required fields
+    const requiredFields = ['userName', 'name', 'email', 'mobileNo'];
+    for (const field of requiredFields) {
+      if (!userData[field]) {
+        throw new Error(`Missing required field: ${field}`);
+      }
+    }
+
+    // Check for existing email/username
+    const existingUser = await User.findOne({
+      $or: [
+        { email: userData.email.toLowerCase() },
+        { userName: userData.userName }
+      ],
+      _id: { $ne: userId }
+    }).session(session);
+
+    if (existingUser) {
+      throw new Error(
+        existingUser.email === userData.email ? 
+        "Email already exists" : 
+        "Username already exists"
+      );
+    }
+
+    // Prepare update data
+    const updateData = {
+      name: userData.name,
+      email: userData.email.toLowerCase(),
+      userName: userData.userName,
+      mobileNo: userData.mobileNo,
+      isOnboarded: true,
+      bio: userData.bio || "",
+      role: userData.role || "user",
+      youtubeUrl: userData.youtubeUrl || "",
+      xUrl: userData.xUrl || "",
+      instagramUrl: userData.instagramUrl || "",
+      nearByVisible: userData.nearByVisible || false,
+      locationSharing: userData.locationSharing || false
+    };
+
+    // Add profile image if provided
+    if (userData.profileImage) {
+      updateData.profileImage = userData.profileImage;
+    }
+
+    // Handle teacher-specific fields
+    if (userData.role === 'teacher') {
+      updateData.teacherId = userData.teacherId;
+      updateData.teacherIdCard = userData.teacherIdCard;
+    }
+
+    console.log("Final update data:", updateData);
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true, session }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
+
+    await session.commitTransaction();
+    console.log("=== onBoardUser Service END ===");
+    return updatedUser;
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("onBoardUser Service Error:", error);
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
 async function getUser(request, response) {
   try {
     const data = await userService.getUser(request.user.id);
