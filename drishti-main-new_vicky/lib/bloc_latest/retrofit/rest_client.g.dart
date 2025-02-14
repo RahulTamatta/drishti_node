@@ -16,7 +16,7 @@ class _RestClient implements RestClient {
   }) {
     baseUrl ??=
         // "https://rest-rosy.vercel.app";
-        // "https://collabdiary.in";
+        // "http://10.0.2.2:8080";
         'http://10.0.2.2:8080';
   }
 
@@ -356,7 +356,7 @@ class _RestClient implements RestClient {
     )
         .compose(
           _dio.options,
-          '/user/search-user?userName=${userName}',
+          'http://10.0.2.2:8080/user/search-user?userName=${userName}',
           queryParameters: queryParameters,
           data: _data,
         )
@@ -383,7 +383,7 @@ class _RestClient implements RestClient {
     )
         .compose(
           _dio.options,
-          '/user/search-teacher?userName=${userName}',
+          'http://10.0.2.2:8080/user/search-teacher?userName=${userName}',
           queryParameters: queryParameters,
           data: _data,
         )

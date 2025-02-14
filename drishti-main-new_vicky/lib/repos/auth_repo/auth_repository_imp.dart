@@ -19,6 +19,7 @@ class AuthRepositoryImp extends AuthRepository {
     return otpResponse;
   }
 
+  @override
   Future<VerifyOtpResponse?> verifyOTP(
       String otp, String data, String deviceToken) async {
     try {

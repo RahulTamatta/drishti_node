@@ -647,6 +647,34 @@ const getNearbyVisible = async (request, response) => {
   }
 };
 
+const searchUsers = async (userName) => {
+  try {
+    const searchRegex = new RegExp(userName, 'i');
+    
+    const users = await User.find({
+      userName: searchRegex,
+      isOnboarded: true,
+      status: { $ne: 'DELETED' }
+    })
+    .select('id userName mobileNo deviceTokens countryCode isOnboarded teacherRoleApproved role nearByVisible locationSharing createdAt updatedAt email name profileImage')
+    .limit(20);
+
+    return {
+      message: "Users found",
+      data: {
+        message: users.length > 0 ? "Users found" : "No user found with the provided userName",
+        data: users
+      }
+    };
+  } catch (error) {
+    console.error("Search users error:", error);
+    throw new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Error searching users"
+    );
+  }
+};
+
 module.exports = {
   userLoginController,
   onBoardUserController,
@@ -663,6 +691,7 @@ module.exports = {
   locationSharing,
   getSocialMediaController,generateTokenController,
   getNearbyVisible,
+  searchUsers,
 };
 
 

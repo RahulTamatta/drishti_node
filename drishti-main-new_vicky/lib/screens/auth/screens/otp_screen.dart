@@ -83,11 +83,11 @@ class _OtpScreenState extends State<OtpScreen> {
           }
           if (state is AuthenticationSuccessfull) {
             // Check VerifyOtpResponse
-            if (state.verifyOtpResponse!.data != null) {
+            if (state.verifyOtpResponse.data != null) {
               // Check data
-              if (state.verifyOtpResponse!.data!.accessToken != null) {
+              if (state.verifyOtpResponse.data!.accessToken != null) {
                 // Check accessToken
-                String accessToken = state.verifyOtpResponse!.data!
+                String accessToken = state.verifyOtpResponse.data!
                     .accessToken!; // Access with ! (because of null check)
                 await SharedPreferencesHelper.saveAccessToken(accessToken);
                 Navigator.of(context).pushAndRemoveUntil(

@@ -1,19 +1,13 @@
 // profile_screen.dart
 import 'package:dio/dio.dart' as dio;
-import 'package:srisridrishti/bloc_latest/bloc/api_bloc.dart';
-import 'package:srisridrishti/bloc_latest/bloc/bloc_event.dart';
-import 'package:srisridrishti/bloc_latest/bloc/bloc_state.dart';
 import 'package:srisridrishti/utils/shared_preference_helper.dart';
 import 'package:srisridrishti/utils/show_toast.dart';
-import 'package:srisridrishti/utils/utill.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:srisridrishti/bloc/profile_details_bloc/profile_details_bloc.dart';
 import 'package:srisridrishti/bloc/profile_details_bloc/profile_details_event.dart';
 import 'package:srisridrishti/bloc/profile_details_bloc/profile_details_state.dart';
 import 'package:srisridrishti/models/user_details_model.dart';
-import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:srisridrishti/utils/image_picker.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';

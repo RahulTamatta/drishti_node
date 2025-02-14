@@ -8,7 +8,7 @@ const String baseUrl1 =
 
     'http://10.0.2.2:8080';
 
-// "https://collabdiary.in";
+// "http://10.0.2.2:8080";
 
 @RestApi(baseUrl: baseUrl1)
 abstract class RestClient {
@@ -77,10 +77,10 @@ abstract class RestClient {
   @GET("/notifyme/{id}")
   Future<dynamic> getNotificationByID(@Path() dynamic id, dynamic token);
 
-  @GET("/user/search-user?userName={userName}")
-  Future<dynamic> getAndSearchUser(@Path() dynamic userName);
+  @GET("/user/search-user")
+  Future<dynamic> getAndSearchUser(@Query('userName') String userName);
 
-  @GET("/user/search-teacher?userName={userName}")
+  @GET("http://10.0.2.2:8080/user/search-teacher?userName={userName}")
   Future<dynamic> getSearchTeacher(@Path() dynamic userName);
 
   @GET("/{path}")

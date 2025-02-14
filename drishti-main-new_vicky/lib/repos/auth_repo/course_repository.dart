@@ -13,7 +13,7 @@ import '../../providers/course_list_provder.dart';
 class courseRepo {
   static Future<DisplayCourseModel> getCourses(BuildContext context) async {
     try {
-      String apiUrl = 'https://collabdiary.in';
+      String apiUrl = 'http://10.0.2.2:8080';
       // DateTime? dateTime =
       //     Provider.of<BottomSheetContentProvider>(context, listen: false).date;
 
@@ -49,7 +49,7 @@ class courseRepo {
 
   static Future<DisplayCourseModel> getMapBasedCourses(
       BuildContext context) async {
-    String apiUrl = 'https://collabdiary.in';
+    String apiUrl = 'http://10.0.2.2:8080';
     LatLng? position =
         Provider.of<CourseListProvider>(context, listen: false).newCo_ordinates;
 

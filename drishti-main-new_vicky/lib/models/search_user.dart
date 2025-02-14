@@ -1,16 +1,8 @@
-// To parse this JSON data, do
-//
-//     final searchUser = searchUserFromJson(jsonString);
-
 import 'dart:convert';
 
-SearchUser searchUserFromJson(dynamic str) => SearchUser.fromJson(str);
-
-String searchUserToJson(SearchUser data) => json.encode(data.toJson());
-
 class SearchUser {
-  String message;
-  Data data;
+  final String message;
+  final SearchDataWrapper data;
 
   SearchUser({
     required this.message,
@@ -18,111 +10,76 @@ class SearchUser {
   });
 
   factory SearchUser.fromJson(Map<String, dynamic> json) => SearchUser(
-        message: json["message"],
-        data: Data.fromJson(json["data"]),
+        message: json["message"] ?? "",
+        data: SearchDataWrapper.fromJson(json["data"] ?? {}),
       );
-
-  Map<String, dynamic> toJson() => {
-        "message": message,
-        "data": data.toJson(),
-      };
 }
 
-class Data {
-  String message;
-  List<Datum> data;
+class SearchDataWrapper {
+  final String message;
+  final SearchDataInner data;
 
-  Data({
+  SearchDataWrapper({
     required this.message,
     required this.data,
   });
 
-  factory Data.fromJson(Map<String, dynamic> json) => Data(
-        message: json["message"],
-        data: List<Datum>.from(json["data"].map((x) => Datum.fromJson(x))),
+  factory SearchDataWrapper.fromJson(Map<String, dynamic> json) =>
+      SearchDataWrapper(
+        message: json["message"] ?? "",
+        data: SearchDataInner.fromJson(json["data"] ?? {}),
       );
-
-  Map<String, dynamic> toJson() => {
-        "message": message,
-        "data": List<dynamic>.from(data.map((x) => x.toJson())),
-      };
 }
 
-class Datum {
-  String id;
-  String userName;
-  String mobileNo;
-  List<dynamic> deviceTokens;
-  String countryCode;
-  bool isOnboarded;
-  String teacherRoleApproved;
-  String role;
-  bool nearByVisible;
-  bool locationSharing;
-  DateTime createdAt;
-  DateTime updatedAt;
-  int v;
-  String email;
-  String name;
-  String profileImage;
+class SearchDataInner {
+  final String message;
+  final List<UserData> data;
 
-  Datum({
-    required this.id,
-    required this.userName,
-    required this.mobileNo,
-    required this.deviceTokens,
-    required this.countryCode,
-    required this.isOnboarded,
-    required this.teacherRoleApproved,
-    required this.role,
-    required this.nearByVisible,
-    required this.locationSharing,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.v,
-    required this.email,
-    required this.name,
-    required this.profileImage,
+  SearchDataInner({
+    required this.message,
+    required this.data,
   });
 
-  factory Datum.fromJson(Map<String, dynamic> json) => Datum(
-        id: json["_id"],
-        userName: json["userName"].toString(),
-        mobileNo: json["mobileNo"].toString(),
-        deviceTokens: List<dynamic>.from(json["deviceTokens"].map((x) => x)),
-        countryCode: json["countryCode"],
-        isOnboarded: json["isOnboarded"],
-        teacherRoleApproved: json["teacherRoleApproved"],
-        role: json["role"],
-        nearByVisible: json["nearByVisible"],
-        locationSharing: json["locationSharing"],
-        createdAt: DateTime.parse(json["createdAt"]),
-        updatedAt: DateTime.parse(json["updatedAt"]),
-        v: json["__v"],
-        email: json["email"].toString(),
-        name: json["name"].toString(),
-        profileImage: json["profileImage"].toString(),
-      );
-
-  Map<String, dynamic> toJson() => {
-        "_id": id,
-        "userName": userName,
-        "mobileNo": mobileNo,
-        "deviceTokens": List<dynamic>.from(deviceTokens.map((x) => x)),
-        "countryCode": countryCode,
-        "isOnboarded": isOnboarded,
-        "teacherRoleApproved": teacherRoleApproved,
-        "role": role,
-        "nearByVisible": nearByVisible,
-        "locationSharing": locationSharing,
-        "createdAt": createdAt.toIso8601String(),
-        "updatedAt": updatedAt.toIso8601String(),
-        "__v": v,
-        "email": email,
-        "name": name,
-        "profileImage": profileImage,
-      };
+  factory SearchDataInner.fromJson(Map<String, dynamic> json) {
+    var dataList =
+        (json["data"] as List?)?.map((x) => UserData.fromJson(x)).toList() ??
+            [];
+    return SearchDataInner(
+      message: json["message"] ?? "",
+      data: dataList,
+    );
+  }
 }
+
+class UserData {
+  final String id;
+  final String name;
+  final String userName;
+  final String email;
+  final String profileImage;
+  final String mobileNo;
+
+  UserData({
+    required this.id,
+    required this.name,
+    required this.userName,
+    required this.email,
+    required this.profileImage,
+    required this.mobileNo,
+  });
+
+  factory UserData.fromJson(Map<String, dynamic> json) => UserData(
+        id: json["_id"] ?? "",
+        name: json["name"] ?? "",
+        userName: json["userName"] ?? "",
+        email: json["email"] ?? "",
+        profileImage: json["profileImage"] ?? "",
+        mobileNo: json["mobileNo"] ?? "",
+      );
+}
+
+SearchUser searchUserFromJson(Map<String, dynamic> json) =>
+    SearchUser.fromJson(json);
 
 SearchTeacher searchTeacherFromJson(dynamic str) => SearchTeacher.fromJson(str);
 

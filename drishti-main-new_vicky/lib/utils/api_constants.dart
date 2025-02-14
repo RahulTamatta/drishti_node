@@ -9,7 +9,7 @@ class ApiConstants {
   static String get user => "$baseUrl/user";
   static String get userUpdate => "$baseUrl/user/update";
 
-// https://collabdiary.in/course/get
+// http://10.0.2.2:8080/course/get
   static String get createEvent => "$baseUrl/event";
   static String get notifyMe => "$baseUrl/event/notifyme";
 }

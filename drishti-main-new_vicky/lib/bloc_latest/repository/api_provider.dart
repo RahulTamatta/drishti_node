@@ -3,7 +3,6 @@ import 'package:srisridrishti/bloc_latest/repository/server_error.dart';
 import 'package:srisridrishti/bloc_latest/retrofit/rest_client.dart';
 import 'package:logger/logger.dart';
 import 'package:srisridrishti/interceptors/token_interceptor.dart';
-import 'package:srisridrishti/repos/auth_repo/encrytion';
 // ignore: depend_on_referenced_packages
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'dart:convert';
@@ -214,17 +213,16 @@ class ApiProvider {
     return BaseModel()..data = response;
   }
 
-  Future<BaseModel<dynamic>> getAndSearchUser(userName) async {
+  Future<BaseModel<dynamic>> getAndSearchUser(String userName) async {
     var logger = Logger();
-    dynamic response;
     try {
-      response = await apiClient!.getAndSearchUser(userName);
+      final response = await apiClient!.getAndSearchUser(userName);
+      return BaseModel()..data = response;
     } catch (error, stacktrace) {
-      logger.f("Exception occured:", error: error, stackTrace: stacktrace);
+      logger.e("Search user error:", error: error, stackTrace: stacktrace);
       return BaseModel()
         ..setException(ServerError.withError(error: error as DioException));
     }
-    return BaseModel()..data = response;
   }
 
   Future<BaseModel<dynamic>> getSearchTeacher(userName) async {

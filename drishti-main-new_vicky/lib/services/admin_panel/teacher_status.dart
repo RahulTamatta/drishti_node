@@ -87,7 +87,7 @@ class ApiService {
       print("Token: $token");
 
       final response = await _dio.post(
-        'https://collabdiary.in/user/action-teacher?status=reject&id=$teacherId',
+        'http://10.0.2.2:8080/user/action-teacher?status=reject&id=$teacherId',
         options: Options(
           headers: {
             'Authorization': token,

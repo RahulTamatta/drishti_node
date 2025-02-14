@@ -105,7 +105,7 @@ class AuthenticationServices {
 
       Map<String, dynamic> decodedObj;
       try {
-        decodedObj = json.decode(decryptedData as String);
+        decodedObj = json.decode(decryptedData);
       } catch (e) {
         print('JSON parse error: $e');
         return VerifyOtpResponse(
