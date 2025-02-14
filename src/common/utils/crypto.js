@@ -24,34 +24,3 @@ const encode = async (data) => {
     throw new Error('Failed to encrypt data');
   }
 };
-
-const decode = async (encryptedData) => {
-  try {
-    console.log('Attempting to decrypt:', encryptedData);
-    
-    // Split the encrypted data to get salt and data
-    const encryptedParts = encryptedData.split('|');
-    const encryptedText = encryptedParts[0] || encryptedData; // Fallback to full string if no separator
-
-    // Decrypt using CryptoJS
-    const bytes = CryptoJS.AES.decrypt(encryptedText, process.env.ENCRYPTION_KEY);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    
-    if (!decrypted) {
-      console.error('Decryption resulted in empty string');
-      throw new Error('Decryption failed');
-    }
-    
-    console.log('Decryption successful:', {
-      input: encryptedData,
-      decrypted: decrypted
-    });
-    
-    return decrypted;
-  } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt data');
-  }
-};
-
-module.exports = { encode, decode };
