@@ -309,66 +309,49 @@ const generateToken = async (req, res) => {
   try {
     const refreshToken = req.body.refreshToken;
     if (!refreshToken) {
-      return createResponse(
-        res,
-        httpStatus.UNAUTHORIZED,
-        "Refresh token is required"
-      );
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Refresh token is required");
     }
 
-    jwt.verify(
-      refreshToken,
-      process.env.JWT_SECRET,
-      async (error, decoded) => {
-        if (error) {
-          console.error("Refresh token verification error:", error);
-          return createResponse(
-            res,
-            httpStatus.UNAUTHORIZED,
-            "Invalid or expired refresh token"
-          );
+    const decoded = await new Promise((resolve, reject) => {
+      jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+          console.error("Refresh token verification error:", err);
+          reject(err);
         }
+        resolve(decoded);
+      });
+    });
 
-        try {
-          const isUser = await User.findOne({ _id: decoded.id, role: decoded.role });
-          if (!isUser) {
-            console.error("User not found for refresh token:", decoded.id);
-            return createResponse(res, httpStatus.UNAUTHORIZED, "User not found");
-          }
-          if (isUser?.status === STATUS.DEACTIVE) {
-            return createResponse(res, httpStatus.FORBIDDEN, "Deactivated account");
-          }
-          if (isUser?.status === STATUS.DELETED) {
-            return createResponse(res, httpStatus.GONE, "Deleted account");
-          }
+    const user = await User.findOne({
+      _id: decoded.id,
+      'refreshTokens.token': refreshToken,
+      'refreshTokens.expiresAt': { $gt: new Date() }
+    });
 
-          const user = await createToken(isUser); // Pass the found user object
-          const tokens = {
-            role: user.role,
-            accessToken: user.accessToken,
-            accessTokenExpiresAt: user.accessTokenExpiresAt,
-            refreshToken: user.refreshToken,
-            refreshTokenExpiresAt: user.refreshTokenExpiresAt,
-          };
-          return createResponse(
-            res,
-            httpStatus.OK,
-            "New access token generated",
-            tokens
-          );
-        } catch (dbError) {
-          console.error("Database error in refresh token process:", dbError);
-          return createResponse(res, httpStatus.INTERNAL_SERVER_ERROR, "Database error");
-        }
-      }
-    );
+    if (!user) {
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid refresh token");
+    }
+
+    // Remove used refresh token
+    await User.findByIdAndUpdate(user._id, {
+      $pull: { refreshTokens: { token: refreshToken } }
+    });
+
+    // Generate new tokens
+    const tokens = await createToken(user);
+
+    return createResponse(res, httpStatus.OK, "New tokens generated successfully", {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt
+    });
   } catch (error) {
-    console.error("General error in refresh token process:", error);
-    return createResponse(
-      res,
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "Internal Server Error"
-    );
+    console.error("Error in generateToken:", error);
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+    }
+    return createResponse(res, httpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
   }
 };
 

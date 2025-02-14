@@ -14,12 +14,12 @@ const envVarsSchema = Joi.object()
     DB_URI: Joi.string().required().description("Mongo DB url"),
     JWT_SECRET: Joi.string().required().description("JWT secret key"),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
-  .default(720)  // 6 hours = 360 minutes
-  .description("Minutes after which access tokens expire"),
-
-    JWT_REFRESH_EXPIRATION_DAYS: Joi.number()
-      .default(30)
-      .description("days after which refresh tokens expire"),
+    .default(60)  // 1 hour
+    .description("Minutes after which access tokens expire"),
+  
+  JWT_REFRESH_EXPIRATION_DAYS: Joi.number()
+    .default(30)  // 30 days
+    .description("days after which refresh tokens expire"),
     TWILIO_ACCOUNT_SID: Joi.string().required(),
     TWILIO_AUTH_TOKEN: Joi.string().required(),
     TWILIO_PHONE_NUMBER: Joi.string().required(),
