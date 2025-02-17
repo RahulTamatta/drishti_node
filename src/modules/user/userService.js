@@ -30,52 +30,50 @@ const userLoginService = async (request) => {
       throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'TWO_FACTOR_API_KEY is not defined');
     }
 
-    try {
-      // Call 2Factor API to send OTP
-      console.log('Calling 2Factor API...');
-      const response = await axios.get(
-        `https://2factor.in/API/V1/${API_KEY}/SMS/${countryCode}${mobileNo}/AUTOGEN/OTP%20For%20Verification`
-      );
+    // Call 2Factor API to send OTP
+    console.log('Calling 2Factor API...');
+    const response = await axios.get(
+      `https://2factor.in/API/V1/${API_KEY}/SMS/${countryCode}${mobileNo}/AUTOGEN/OTP%20For%20Verification`
+    );
 
-      console.log('2Factor API response:', response.data);
+    console.log('2Factor API response:', response.data);
 
-      if (response.data.Status === "Success") {
-        const sessionId = response.data.Details;
-        const now = new Date();
-        const expiration_time = AddMinutesToDate(now, 10);
+    if (response.data.Status === "Success") {
+      const sessionId = response.data.Details;
+      const now = new Date();
+      const expiration_time = AddMinutesToDate(now, 10);
 
-        // Prepare data for encryption
-        const details = {
-          sessionId,
-          expiration_time,
-          mobile: mobileNo,
-          countryCode
-        };
+      // Check if user exists
+      const user = await User.findOne({ mobileNo, countryCode });
+
+      // Prepare data for encryption
+      const details = {
+        sessionId,
+        expiration_time,
+        mobile: mobileNo,
+        countryCode
+      };
 
       if (user) {
         details["userId"] = user._id.toString();
       }
 
       return { data: await encode(JSON.stringify(details)) };
-
-
     } else {
       console.error("2Factor API Error:", response.data);
 
       // More specific error handling based on 2factor API response
       let errorMessage = "Failed to send OTP";
-      if (response.data && response.data.Details) { // Check if Details exists
-        errorMessage = response.data.Details; // Try to extract more details from the API response
+      if (response.data && response.data.Details) {
+        errorMessage = response.data.Details;
       }
       throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-
     }
   } catch (error) {
     console.error('userLoginService Error:', error);
     throw error;
   }
 };
-
 
 const verifyOtp = async (request) => {
   try {
@@ -757,8 +755,9 @@ module.exports = {
   verifyOtp,
   getTeachersRequest,
   locationSharing,
-  updateSocialMediaLinks,generateToken,
+  updateSocialMediaLinks,
+  generateToken,
   getSocialMedia,
   getNearbyVisibleUsers,
-  // searchUsers,
+  searchUsers
 };

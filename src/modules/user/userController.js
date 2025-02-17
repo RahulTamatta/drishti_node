@@ -480,7 +480,7 @@ const searchUsers = async (req, res) => {
 
 const getUser = async (request, response) => {
   try {
-    if (!request.user || !request.user._id) {
+    if (!request.user || !request.user.id) {
       console.error('No user ID in request');
       return createResponse(
         response,
@@ -489,9 +489,9 @@ const getUser = async (request, response) => {
       );
     }
 
-    console.log('getUser controller - User ID:', request.user._id);
+    console.log('getUser controller - User ID:', request.user.id);
     
-    const userData = await userService.getUser(request.user._id);
+    const userData = await userService.getUser(request.user.id);
     console.log('getUser controller - User data:', userData);
 
     return createResponse(
