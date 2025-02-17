@@ -9,9 +9,19 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-// Define the upload fields
-const userUpload = upload.fields([{ name: "profilePic" }]);
-const teacherUpload = upload.fields([{ name: "teacherIdCard", maxCount: 1 }]);
+// Define the upload fields for different routes
+const profileUpload = upload.fields([
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'teacherIdCard', maxCount: 1 }
+]);
+
+const fileUpload = upload.fields([
+  { name: 'file', maxCount: 1 }
+]);
+
+const teacherUpload = upload.fields([
+  { name: 'teacherIdCard', maxCount: 1 }
+]);
 
 const {
   userLoginV,
@@ -70,8 +80,8 @@ router
     [
       auth(ROLES.ALL),
       validate(onBoardUserV),
+      profileUpload
     ],
-    upload.single('profileImage'),
     onBoardUserController
   )
   .all(methodNotAllowed);
@@ -83,7 +93,7 @@ router
 
 router
   .route("/upload")
-  .post(auth(ROLES.ALL), userUpload, addFiles)
+  .post(auth(ROLES.ALL), fileUpload, addFiles)
   .all(methodNotAllowed);
 
 router
@@ -93,7 +103,7 @@ router
 
 router
   .route("/teacher")
-  .post(auth(ROLES.ALL), teacherUpload, addTeacherRole)
+  .post([auth(ROLES.ALL), teacherUpload], addTeacherRole)
   .all(methodNotAllowed);
 
 router.route("/all").get(auth(ROLES.ALL), getAllUsers).all(methodNotAllowed);

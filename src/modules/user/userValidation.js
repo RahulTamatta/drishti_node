@@ -1,20 +1,26 @@
 const Joi = require("joi");
 const constants = require("../../common/utils/constants");
 
-// In userValidation.js
-const onBoardUserV = Joi.object({
-  userName: Joi.string().required(),
-  name: Joi.string().required(),
-  email: Joi.string().email().required(),
-  mobileNo: Joi.string().length(10).required(),
-  role: Joi.string().valid("user", "teacher").required(),
-  teacherId: Joi.when("role", {
-    is: "teacher",
-    then: Joi.string().required(),
-    otherwise: Joi.optional(),
-  }),
-  // Add other fields if needed
-});
+const onBoardUserV = {
+  body: Joi.object().keys({
+    userName: Joi.string().required().trim(),
+    name: Joi.string().required().trim(),
+    email: Joi.string().email().allow('').trim(),
+    mobileNo: Joi.string().allow('').trim(),
+    role: Joi.string().valid(constants.ROLES.USER, constants.ROLES.TEACHER).default(constants.ROLES.USER),
+    bio: Joi.string().allow('').trim(),
+    teacherId: Joi.when('role', {
+      is: constants.ROLES.TEACHER,
+      then: Joi.string().required().trim(),
+      otherwise: Joi.string().allow('').optional()
+    }),
+    youtubeUrl: Joi.string().allow('').trim().uri().optional(),
+    xUrl: Joi.string().allow('').trim().uri().optional(),
+    instagramUrl: Joi.string().allow('').trim().uri().optional(),
+    nearByVisible: Joi.boolean().default(false),
+    locationSharing: Joi.boolean().default(false)
+  })
+};
 
 const userLoginV = {
   body: Joi.object().keys({

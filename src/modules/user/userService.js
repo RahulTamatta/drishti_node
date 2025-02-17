@@ -38,40 +38,51 @@ const userLoginService = async (request) => {
 
     console.log('2Factor API response:', response.data);
 
-    if (response.data.Status === "Success") {
-      const sessionId = response.data.Details;
-      const now = new Date();
-      const expiration_time = AddMinutesToDate(now, 10);
-
-      // Check if user exists
-      const user = await User.findOne({ mobileNo, countryCode });
-
-      // Prepare data for encryption
-      const details = {
-        sessionId,
-        expiration_time,
-        mobile: mobileNo,
-        countryCode
-      };
-
-      if (user) {
-        details["userId"] = user._id.toString();
-      }
-
-      return { data: await encode(JSON.stringify(details)) };
-    } else {
-      console.error("2Factor API Error:", response.data);
-
-      // More specific error handling based on 2factor API response
-      let errorMessage = "Failed to send OTP";
-      if (response.data && response.data.Details) {
-        errorMessage = response.data.Details;
-      }
+    if (response.data.Status !== "Success") {
+      const errorMessage = response.data.Details || 'Failed to send OTP';
       throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
     }
+
+    // Check if user exists
+    const user = await User.findOne({ mobileNo, countryCode });
+    console.log('User lookup result:', { exists: !!user });
+
+    // Prepare data for encryption
+    const details = {
+      sessionId: response.data.Details,
+      expiration_time: AddMinutesToDate(new Date(), 10).toISOString(),
+      mobile: mobileNo,
+      countryCode: countryCode
+    };
+
+    if (user) {
+      details.userId = user._id.toString();
+    }
+
+    // Encrypt the data
+    try {
+      const encryptedData = await encode(JSON.stringify(details));
+      console.log('Data encrypted successfully:', {
+        hasSessionId: !!details.sessionId,
+        hasUserId: !!details.userId,
+        encryptedLength: encryptedData.length
+      });
+
+      return { data: encryptedData };
+    } catch (encryptError) {
+      console.error('Encryption error:', encryptError);
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to secure OTP data');
+    }
   } catch (error) {
-    console.error('userLoginService Error:', error);
-    throw error;
+    console.error('Login service error:', {
+      message: error.message,
+      status: error.status,
+      stack: error.stack
+    });
+    throw error instanceof appError ? error : new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || 'Failed to process login request'
+    );
   }
 };
 
@@ -92,8 +103,23 @@ const verifyOtp = async (request) => {
     // Decode and validate the encrypted data
     let decodedObj;
     try {
-      const decoded = await decode(data);
-      decodedObj = JSON.parse(decoded);
+      // First try to decrypt the data
+      const decryptedData = await decode(data);
+      console.log('Decrypted data:', decryptedData);
+
+      // Then parse the JSON
+      try {
+        decodedObj = JSON.parse(decryptedData);
+        console.log('Parsed data:', decodedObj);
+
+        // Validate required fields
+        if (!decodedObj.sessionId || !decodedObj.mobile || !decodedObj.countryCode) {
+          throw new Error('Missing required fields in encrypted data');
+        }
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        throw new appError(httpStatus.BAD_REQUEST, "Invalid data format");
+      }
     } catch (decodeError) {
       console.error('Decoding error:', decodeError);
       throw new appError(httpStatus.BAD_REQUEST, "Invalid encrypted data");
@@ -259,130 +285,132 @@ const updateLocation = async (request) => {
 
 
 const onBoardUser = async (request) => {
-  console.log("request.user.id:", request.user.id);
-  console.log("request.user:", request.user);
-  console.log("onBoardUser called. Request body:", request.body);  // Log request body inside
-  console.log("onBoardUser called. Request files:", request.files);  // Log request files inside
-  console.log("onBoardUser called. Request user:", request.user);  // Log request user inside
-  console.log("onBoardUser called. Request user ID:", request.user?.id);  // Log user ID (safely)
-
-
-  const { name, email, userName, mobileNo, bio, teacherId, role, youtubeUrl, xUrl, instagramUrl, nearByVisible, locationSharing } = request.body;
-
-  let profileImg = "";
-  let teacherIdCard = "";
-
-  try {  // Wrap the file upload in a try-catch
-
-    if (request.files && Object.keys(request.files).length !== 0) {
-      const filesToUpload = [];
-      if (request.files.profileImage && request.files.profileImage.length > 0) {
-        filesToUpload.push(request.files.profileImage[0]);
-      }
-      if (request.files.teacherIdCard && request.files.teacherIdCard.length > 0) {
-        filesToUpload.push(request.files.teacherIdCard[0]);
-      }
-
-      if (filesToUpload.length > 0) {
-        const uploadedFiles = await uploadFilesToBucket(filesToUpload);
-        console.log("Uploaded files:", uploadedFiles); // Log the result of the upload
-        uploadedFiles.forEach(file => {
-          if (file.label.startsWith('profileImage')) {
-            profileImg = file.link;
-          } else if (file.label.startsWith('teacherIdCard')) {
-            teacherIdCard = file.link;
-          }
-        });
-      }
-    }
-  } catch (fileUploadError) {
-    console.error("File upload error in onBoardUser:", fileUploadError);
-    console.error("File upload error (stringified):", JSON.stringify(fileUploadError, null, 2));
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed: " + fileUploadError.message);
-  }
-
-
-  const Email = email ? email.toLowerCase() : null; // Handle if email is undefined
-
   try {
-    const isExistingEmail = await User.findOne({
-      email: Email,
-      _id: { $ne: request.user.id },
-    });
-    console.log("isExistingEmail:", isExistingEmail);
+    console.log("onBoardUser called. Request body:", request.body);
+    console.log("onBoardUser called. Request files:", request.files);
+    console.log("onBoardUser called. Request user:", request.user);
 
-    const isExistingUserName = await User.findOne({
-      userName: userName,
-      _id: { $ne: request.user.id },
-    });
-    console.log("isExistingUserName:", isExistingUserName);
-
-    if (isExistingEmail) {
-      throw new appError(httpStatus.CONFLICT, request.t("user.EMAIL_EXISTENT"));
+    if (!request.user || !request.user.id) {
+      throw new appError(httpStatus.UNAUTHORIZED, "Authentication required");
     }
-    if (isExistingUserName) {
-      throw new appError(httpStatus.CONFLICT, request.t("user.UserName_EXISTENT"));
+
+    const { 
+      name, 
+      email, 
+      userName, 
+      mobileNo, 
+      bio, 
+      teacherId, 
+      role, 
+      youtubeUrl, 
+      xUrl, 
+      instagramUrl, 
+      nearByVisible, 
+      locationSharing 
+    } = request.body;
+
+    // Validate required fields
+    if (!userName || !name) {
+      throw new appError(httpStatus.BAD_REQUEST, "Username and name are required");
     }
-  } catch (findError) {
-    console.error("Error checking existing user:", findError);
-    console.error("Error checking existing user (stringified):", JSON.stringify(findError, null, 2));
-    throw findError; // Re-throw the error
-  }
 
+    let profileImg = "";
+    let teacherIdCard = "";
 
-  let updatedUser;
-  try { // Wrap the database operation in a try-catch
-      if (role === constants.ROLES.TEACHER) {
-          updatedUser = await User.findByIdAndUpdate(
-              request.user.id,
-              {
-                  name,
-                  email: Email,
-                  userName,
-                  mobileNo,
-                  profileImage: profileImg,
-                  isOnboarded: true,
-                  teacherIdCard,
-                  teacherId,
-                  role: constants.ROLES.TEACHER,
-                  bio,
-                  youtubeUrl,
-                  xUrl,
-                  instagramUrl,
-                  nearByVisible,
-                  locationSharing,
-              },
-              { new: true }
-          );
-      } else {
-          updatedUser = await User.findByIdAndUpdate(
-              request.user.id,
-              {
-                  name,
-                  email: Email,
-                  mobileNo,
-                  userName,
-                  profileImage: profileImg,
-                  isOnboarded: true,
-                  bio,
-                  role: constants.ROLES.USER,
-                  youtubeUrl,
-                  xUrl,
-                  instagramUrl,
-                  nearByVisible,
-                  locationSharing,
-              },
-              { new: true }
-          );
+    // Handle file uploads
+    if (request.files && Object.keys(request.files).length > 0) {
+      try {
+        const filesToUpload = [];
+        if (request.files.profileImage?.[0]) {
+          filesToUpload.push(request.files.profileImage[0]);
+        }
+        if (request.files.teacherIdCard?.[0]) {
+          filesToUpload.push(request.files.teacherIdCard[0]);
+        }
+
+        if (filesToUpload.length > 0) {
+          const uploadedFiles = await uploadFilesToBucket(filesToUpload);
+          console.log("Uploaded files:", uploadedFiles);
+          
+          uploadedFiles.forEach(file => {
+            if (file.label?.startsWith('profileImage')) {
+              profileImg = file.link;
+            } else if (file.label?.startsWith('teacherIdCard')) {
+              teacherIdCard = file.link;
+            }
+          });
+        }
+      } catch (fileError) {
+        console.error("File upload error:", fileError);
+        throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed");
       }
-      console.log("onBoardUser: Updated user data:", updatedUser);
-  } catch (dbError) {
-      console.error("Database update error in onBoardUser:", dbError);
-      console.error("Database update error (stringified):", JSON.stringify(dbError, null, 2));
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Database error: " + dbError.message);
-  }
+    }
 
-  return updatedUser;
+    const normalizedEmail = email ? email.toLowerCase() : null;
+
+    // Check for existing email/username
+    const [existingEmail, existingUsername] = await Promise.all([
+      normalizedEmail ? User.findOne({ 
+        email: normalizedEmail,
+        _id: { $ne: request.user.id }
+      }) : null,
+      User.findOne({ 
+        userName,
+        _id: { $ne: request.user.id }
+      })
+    ]);
+
+    if (existingEmail) {
+      throw new appError(httpStatus.CONFLICT, "Email already exists");
+    }
+    if (existingUsername) {
+      throw new appError(httpStatus.CONFLICT, "Username already exists");
+    }
+
+    // Prepare update data
+    const updateData = {
+      name,
+      email: normalizedEmail,
+      userName,
+      mobileNo,
+      profileImage: profileImg || undefined,
+      isOnboarded: true,
+      bio: bio || '',
+      role: role === constants.ROLES.TEACHER ? constants.ROLES.TEACHER : constants.ROLES.USER,
+      youtubeUrl: youtubeUrl || '',
+      xUrl: xUrl || '',
+      instagramUrl: instagramUrl || '',
+      nearByVisible: Boolean(nearByVisible),
+      locationSharing: Boolean(locationSharing)
+    };
+
+    // Add teacher-specific fields if role is teacher
+    if (role === constants.ROLES.TEACHER) {
+      updateData.teacherIdCard = teacherIdCard;
+      updateData.teacherId = teacherId;
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      request.user.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      throw new appError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    console.log("User updated successfully:", updatedUser);
+    return updatedUser;
+
+  } catch (error) {
+    console.error("onBoardUser error:", error);
+    throw error instanceof appError ? error : new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Failed to update user profile"
+    );
+  }
 };
 
 const generateToken = async (req, res) => {

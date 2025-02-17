@@ -1,10 +1,13 @@
-const crypto = require("crypto");
 const CryptoJS = require('crypto-js');
 require('dotenv').config();
 
-// Make sure these environment variables are set
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-fallback-encryption-key-32chars';
-const IV = process.env.ENCRYPTION_IV || 'your-fallback-iv-16-chars';
+// Get encryption key and IV from environment
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'drishti_secure_encryption_key_20';
+const IV = process.env.IV || '0123456789abcdef';
+
+// Convert key and IV to proper format
+const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
+const iv = CryptoJS.enc.Utf8.parse(IV);
 
 const encode = (data) => {
   try {
@@ -12,18 +15,21 @@ const encode = (data) => {
       throw new Error('Data to encrypt is required');
     }
 
-    // Convert key and IV to proper format
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
-    const iv = CryptoJS.enc.Utf8.parse(IV);
+    // Convert data to string if it's not already
+    const stringData = typeof data === 'string' ? data : JSON.stringify(data);
+    console.log('Encrypting data:', { dataLength: stringData.length });
 
-    // Encrypt the data
-    const encrypted = CryptoJS.AES.encrypt(data, key, {
+    // Encrypt using AES
+    const encrypted = CryptoJS.AES.encrypt(stringData, key, {
       iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7
     });
 
-    return encrypted.toString();
+    const result = encrypted.toString();
+    console.log('Encryption successful:', { resultLength: result.length });
+    return result;
+
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt data: ' + error.message);
@@ -32,30 +38,38 @@ const encode = (data) => {
 
 const decode = async (encryptedData) => {
   try {
-    console.log('Attempting to decrypt:', encryptedData);
-    
-    // Split the encrypted data to get salt and data
-    const encryptedParts = encryptedData.split('|');
-    const encryptedText = encryptedParts[0] || encryptedData; // Fallback to full string if no separator
-
-    // Decrypt using CryptoJS
-    const bytes = CryptoJS.AES.decrypt(encryptedText, process.env.ENCRYPTION_KEY);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    
-    if (!decrypted) {
-      console.error('Decryption resulted in empty string');
-      throw new Error('Decryption failed');
+    if (!encryptedData) {
+      throw new Error('Encrypted data is required');
     }
-    
-    console.log('Decryption successful:', {
-      input: encryptedData,
-      decrypted: decrypted
+
+    console.log('Attempting to decrypt data:', {
+      inputLength: encryptedData.length
     });
-    
-    return decrypted;
+
+    // Decrypt the data
+    const decrypted = CryptoJS.AES.decrypt(encryptedData, key, {
+      iv: iv,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7
+    });
+
+    const result = decrypted.toString(CryptoJS.enc.Utf8);
+    if (!result) {
+      throw new Error('Decryption resulted in empty string');
+    }
+
+    console.log('Decryption successful:', {
+      resultLength: result.length
+    });
+
+    return result;
+
   } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt data');
+    console.error('Decryption error:', {
+      message: error.message,
+      stack: error.stack
+    });
+    throw new Error('Invalid encrypted data: ' + error.message);
   }
 };
 
