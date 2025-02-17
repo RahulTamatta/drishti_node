@@ -760,5 +760,5 @@ module.exports = {
   updateSocialMediaLinks,generateToken,
   getSocialMedia,
   getNearbyVisibleUsers,
-  searchUsers,
+  // searchUsers,
 };
