@@ -4,10 +4,20 @@ const createResponse = require("../common/utils/createResponse.js");
 const status = require("../common/utils/status.json");
 const User = require("../models/user");
 
-const verifyJWT = (token, secret) => {
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not set!');
+  process.exit(1);
+}
+
+const verifyJWT = (token) => {
   return new Promise((resolve, reject) => {
-    jwt.verify(token, secret, (error, decoded) => {
-      if (error) reject(error);
+    jwt.verify(token, JWT_SECRET, (error, decoded) => {
+      if (error) {
+        console.error('JWT verification error:', error.message);
+        reject(error);
+      }
       resolve(decoded);
     });
   });
@@ -15,8 +25,11 @@ const verifyJWT = (token, secret) => {
 
 const auth = (user_Role) => async (request, response, next) => {
   try {
+    console.log('Auth middleware - Received headers:', request.headers);
     const userRole = Array.isArray(user_Role) ? user_Role : [user_Role];
     const authHeader = request.header("Authorization");
+    
+    console.log('Auth middleware - Authorization header:', authHeader);
     
     // Handle guest role
     if (!authHeader && userRole.includes(constants.ROLES.GUEST)) {
@@ -24,6 +37,7 @@ const auth = (user_Role) => async (request, response, next) => {
     }
 
     if (!authHeader) {
+      console.log('Auth middleware - No authorization header provided');
       return createResponse(
         response,
         status.UNAUTHORIZED,
@@ -35,70 +49,61 @@ const auth = (user_Role) => async (request, response, next) => {
     const token = authHeader.startsWith("Bearer ") 
       ? authHeader.slice(7) 
       : authHeader;
+    
+    console.log('Auth middleware - Extracted token:', token);
 
     try {
-      const verified = await verifyJWT(token, process.env.JWT_SECRET);
+      const verified = await verifyJWT(token);
+      console.log('Auth middleware - Verified token payload:', verified);
       
+      if (!verified || !verified.id) {
+        throw new Error('Invalid token payload');
+      }
+
       // Find and validate user
       const user = await User.findById(verified.id);
-      
+      console.log('Auth middleware - Found user:', user ? user._id : 'No user found');
+
       if (!user) {
         return createResponse(
-          response, 
-          status.NOT_FOUND, 
+          response,
+          status.UNAUTHORIZED,
           "User not found"
         );
       }
 
-      // Check role authorization
+      // Check if user has required role
       if (!userRole.includes(user.role)) {
         return createResponse(
-          response, 
-          status.FORBIDDEN, 
-          "Unauthorized role"
+          response,
+          status.FORBIDDEN,
+          "You don't have permission to access this resource"
         );
-      }
-
-      // Check user status
-      switch (user.status) {
-        case constants.STATUS.DEACTIVE:
-          return createResponse(
-            response,
-            status.FORBIDDEN,
-            "Your account is deactivated. Please contact your administrator"
-          );
-        case constants.STATUS.DELETED:
-          return createResponse(
-            response,
-            status.GONE,
-            "Your account is deleted. Please contact your administrator"
-          );
       }
 
       // Attach user to request
-      request.user = user;
-      return next();
+      request.user = {
+        id: user._id.toString(),
+        role: user.role
+      };
 
+      next();
     } catch (error) {
-      if (error.name === "TokenExpiredError") {
-        return createResponse(
-          response,
-          status.UNAUTHORIZED,
-          "Access token has expired"
-        );
-      }
+      console.error('Auth middleware - Token verification error:', error.message);
       return createResponse(
-        response, 
-        status.GONE, 
-        error.message
+        response,
+        status.UNAUTHORIZED,
+        error.message === 'jwt expired' 
+          ? "Token has expired" 
+          : "Invalid token"
       );
     }
-
   } catch (error) {
+    console.error('Auth middleware - General error:', error);
     return createResponse(
-      response, 
-      error.status || status.INTERNAL_SERVER_ERROR, 
-      error.message
+      response,
+      status.INTERNAL_SERVER_ERROR,
+      "Authentication failed"
     );
   }
 };

@@ -15,165 +15,236 @@ function AddMinutesToDate(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }
 const userLoginService = async (request) => {
-  const { mobileNo, countryCode, type } = request.body;
-  let user = await User.findOne({
-    mobileNo: mobileNo,
-  });
-
-  const API_KEY = process.env.TWO_FACTOR_API_KEY;
-
-  if (!API_KEY) {
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'TWO_FACTOR_API_KEY is not defined');
-  }
-
   try {
-    const response = await axios.get(`https://2factor.in/API/V1/${API_KEY}/SMS/${countryCode}${mobileNo}/AUTOGEN/OTP%20For%20Verification`);
+    const { mobileNo, countryCode } = request.body;
+    console.log('Login request for:', { mobileNo, countryCode });
 
-    // Check for success and also for specific error codes if 2factor API provides them
-    if (response.data.Status === "Success") {
-      const sessionId = response.data.Details;
-      const now = new Date();
-      const expiration_time = AddMinutesToDate(now, 10);
+    // Validate required fields
+    if (!mobileNo || !countryCode) {
+      throw new appError(httpStatus.BAD_REQUEST, 'Mobile number and country code are required');
+    }
 
-      let details = {
-        sessionId: sessionId,
-        expiration_time: expiration_time,
-        mobile: mobileNo,
-        countryCode: countryCode,
-        type: type,
-      };
+    // Check if API key exists
+    const API_KEY = process.env.TWO_FACTOR_API_KEY;
+    if (!API_KEY) {
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'TWO_FACTOR_API_KEY is not defined');
+    }
 
-      if (user) {
-        details["userId"] = user._id.toString();
+    try {
+      // Call 2Factor API to send OTP
+      console.log('Calling 2Factor API...');
+      const response = await axios.get(
+        `https://2factor.in/API/V1/${API_KEY}/SMS/${countryCode}${mobileNo}/AUTOGEN/OTP%20For%20Verification`
+      );
+
+      console.log('2Factor API response:', response.data);
+
+      if (response.data.Status === "Success") {
+        const sessionId = response.data.Details;
+        const now = new Date();
+        const expiration_time = AddMinutesToDate(now, 10);
+
+        // Prepare data for encryption
+        const details = {
+          sessionId,
+          expiration_time,
+          mobile: mobileNo,
+          countryCode
+        };
+
+        // Encrypt the data
+        const encryptedData = await encode(JSON.stringify(details));
+        
+        return {
+          success: true,
+          message: "OTP sent successfully",
+          data: encryptedData
+        };
+      } else {
+        throw new appError(httpStatus.BAD_REQUEST, "Failed to send OTP");
       }
-
-      return { data: await encode(JSON.stringify(details)) };
-
-    } else {
-      console.error("2Factor API Error:", response.data);
-
-      // More specific error handling based on 2factor API response
-      let errorMessage = "Failed to send OTP";
-      if (response.data && response.data.Details) { // Check if Details exists
-        errorMessage = response.data.Details; // Try to extract more details from the API response
-      }
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-
+    } catch (apiError) {
+      console.error('2Factor API Error:', apiError);
+      throw new appError(
+        httpStatus.SERVICE_UNAVAILABLE,
+        "Failed to send OTP. Please try again later."
+      );
     }
   } catch (error) {
-    console.error("Error sending OTP:", error);
-
-    // Improved error message handling.  Include original error message if available.
-    let errorMessage = "Error sending OTP";
-    if (error.response && error.response.data && error.response.data.message) {
-        errorMessage = error.response.data.message; // From backend
-    } else if (error.message) {
-        errorMessage = error.message; // From axios or other errors
-    } else if (error.toString()) {
-      errorMessage = error.toString();
-    }
-    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+    console.error('userLoginService Error:', error);
+    throw error;
   }
 };
 
 
-const  verifyOtp = async (request) => {
+const verifyOtp = async (request) => {
   try {
     const { otp, deviceToken, data } = request.body;
-    
-    // Decode and validate the encrypted data
-    const decoded = await decode(data);
-    const decodedObj = JSON.parse(decoded);
+    console.log('Starting OTP verification process');
+    console.log('Request body:', { 
+      otp: otp ? 'REDACTED' : 'MISSING', 
+      deviceToken: deviceToken ? deviceToken.substring(0, 20) + '...' : 'MISSING',
+      dataLength: data ? data.length : 0
+    });
 
-    // Verify expiration
-    const expirationTime = new Date(decodedObj.expiration_time);
-    if (expirationTime <= new Date()) {
-      throw new appError(httpStatus.UNAUTHORIZED, "OTP expired");
+    if (!otp || !data) {
+      throw new appError(httpStatus.BAD_REQUEST, "OTP and data are required");
+    }
+
+    // Decode and validate the encrypted data
+    let decodedObj;
+    try {
+      const decoded = await decode(data);
+      decodedObj = JSON.parse(decoded);
+    } catch (decodeError) {
+      console.error('Decoding error:', decodeError);
+      throw new appError(httpStatus.BAD_REQUEST, "Invalid encrypted data");
     }
 
     // Verify OTP with 2Factor API
-    const verifyResponse = await axios.get(
-      `https://2factor.in/API/V1/${process.env.TWO_FACTOR_API_KEY}/SMS/VERIFY/${decodedObj.sessionId}/${otp}`
-    );
+    const API_KEY = process.env.TWO_FACTOR_API_KEY;
+    try {
+      const response = await axios.get(
+        `https://2factor.in/API/V1/${API_KEY}/SMS/VERIFY/${decodedObj.sessionId}/${otp}`
+      );
 
-    if (verifyResponse.data.Status !== "Success") {
-      throw new appError(httpStatus.UNAUTHORIZED, "Invalid OTP");
+      if (response.data.Status !== "Success") {
+        throw new appError(httpStatus.BAD_REQUEST, "Invalid OTP");
+      }
+    } catch (apiError) {
+      throw new appError(httpStatus.BAD_REQUEST, "Failed to verify OTP");
     }
 
-    try {
-      // Find existing user
-      let user = await User.findOne({
+    // Find or create user
+    let user = await User.findOne({ 
+      mobileNo: decodedObj.mobile,
+      countryCode: decodedObj.countryCode 
+    });
+
+    const isNewUser = !user;
+
+    if (!user) {
+      // Create new user with empty refresh tokens array
+      user = await User.create({
         mobileNo: decodedObj.mobile,
-        countryCode: decodedObj.countryCode
+        countryCode: decodedObj.countryCode,
+        role: ROLES.USER,
+        deviceTokens: deviceToken ? [deviceToken] : [],
+        refreshTokens: [], // Initialize as empty array
+        isOnboarded: false,
+        name: '',
+        email: '',
+        userName: '',
+        profileImage: '',
+        teacherRoleApproved: 'pending',
+        teacherId: '',
+        teacherIdCard: ''
       });
-
-      const isNewUser = !user;
-
-      if (isNewUser) {
-        // Create new user
-        user = await User.create({
-          mobileNo: decodedObj.mobile,
-          countryCode: decodedObj.countryCode,
-          deviceTokens: deviceToken ? [deviceToken] : [],
-          role: 'USER',
-          isOnboarded: false,
-          refreshTokens: [] // Initialize empty refresh tokens array
-        });
-      } else if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
-        // Update existing user's device tokens
-        user.deviceTokens.push(deviceToken);
-        user = await user.save(); // Save and get updated user
+    } else {
+      // Update existing user's device token
+      if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
+        user.deviceTokens = [...user.deviceTokens, deviceToken];
       }
 
-      // Generate tokens for the user
-      const tokens = await createToken(user);
+      // Reset refresh tokens if they're in an invalid state
+      if (!Array.isArray(user.refreshTokens)) {
+        user.refreshTokens = [];
+      }
 
-      return {
-        success: true,
-        isNewUser,
-        user: {
-          _id: user._id,
-          mobileNo: user.mobileNo,
-          countryCode: user.countryCode,
-          role: user.role,
-          isOnboarded: user.isOnboarded
-        },
-        ...tokens
-      };
-
-    } catch (dbError) {
-      console.error('Database operation error:', dbError);
-      throw new appError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        "Error processing user data"
+      // Clean up any invalid tokens
+      user.refreshTokens = user.refreshTokens.filter(token => 
+        token && 
+        typeof token === 'object' && 
+        token.token && 
+        token.expiresAt
       );
+
+      try {
+        await user.save();
+      } catch (saveError) {
+        console.error('Error saving user device token:', saveError);
+        // If save fails due to token validation, reset tokens
+        user.refreshTokens = [];
+        await user.save();
+      }
     }
 
+    // Generate new tokens
+    const { accessToken, refreshToken, accessExpiration, refreshExpiration } = 
+      await createToken(user._id.toString());
+
+    // Log token details for debugging
+    console.log('Token Generation Details:', {
+      userId: user._id.toString(),
+      refreshTokenType: typeof refreshToken,
+      refreshTokenLength: refreshToken ? refreshToken.length : 0,
+      existingTokenCount: user.refreshTokens.length
+    });
+
+    return {
+      user,
+      isNewUser,
+      accessToken,
+      refreshToken,
+      accessExpiration,
+      refreshExpiration
+    };
   } catch (error) {
-    console.error("OTP Verification Error:", error);
-    throw new appError(
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "OTP verification failed"
-    );
+    console.error('OTP Verification Error:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name
+    });
+    throw error;
   }
 };
 
 
 const updateLocation = async (request) => {
-  const { lat, long, location } = request.body;
+  try {
+    const { lat, long, location } = request.body;
 
-  return await User.findByIdAndUpdate(
-    request.user.id,
-    {
-      location: location,
-      latlong: {
-        coordinates: [parseFloat(long), parseFloat(lat)],
-      },
-    },
-    {
-      new: true,
+    // Validate coordinates
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(long);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw new appError(httpStatus.BAD_REQUEST, "Invalid coordinates");
     }
-  );
+
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      throw new appError(httpStatus.BAD_REQUEST, "Coordinates out of range");
+    }
+
+    // Update user with proper GeoJSON Point
+    const updatedUser = await User.findByIdAndUpdate(
+      request.user.id,
+      {
+        location: location,
+        geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude] // GeoJSON format is [longitude, latitude]
+        }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!updatedUser) {
+      throw new appError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    return updatedUser;
+  } catch (error) {
+    console.error('Location update error:', error);
+    throw error instanceof appError ? error : new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to update location"
+    );
+  }
 };
 
 
@@ -308,43 +379,57 @@ const onBoardUser = async (request) => {
 const generateToken = async (req, res) => {
   try {
     const refreshToken = req.body.refreshToken;
-    if (!refreshToken) {
-      return createResponse(res, httpStatus.UNAUTHORIZED, "Refresh token is required");
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Valid refresh token is required");
     }
 
-    const decoded = await new Promise((resolve, reject) => {
-      jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
-        if (err) {
-          console.error("Refresh token verification error:", err);
-          reject(err);
-        }
-        resolve(decoded);
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = await new Promise((resolve, reject) => {
+        jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
+          if (err) {
+            console.error("Refresh token verification error:", err);
+            reject(err);
+          }
+          resolve(decoded);
+        });
       });
-    });
+    } catch (verifyError) {
+      console.error("Token verification failed:", verifyError);
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid refresh token");
+    }
 
-    const user = await User.findOne({
-      _id: decoded.id,
-      'refreshTokens.token': refreshToken,
-      'refreshTokens.expiresAt': { $gt: new Date() }
-    });
-
+    // Find user and validate token
+    const user = await User.findById(decoded.id);
     if (!user) {
+      console.error("User not found for token:", decoded.id);
+      return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid refresh token");
+    }
+
+    // Validate that the token exists in user's refresh tokens
+    const tokenExists = user.refreshTokens.includes(refreshToken);
+    if (!tokenExists) {
+      console.error("Token not found in user's refresh tokens");
       return createResponse(res, httpStatus.UNAUTHORIZED, "Invalid refresh token");
     }
 
     // Remove used refresh token
-    await User.findByIdAndUpdate(user._id, {
-      $pull: { refreshTokens: { token: refreshToken } }
-    });
+    user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
+    await user.save();
 
     // Generate new tokens
-    const tokens = await createToken(user);
+    const tokens = await createToken(user._id.toString());
+    console.log('New tokens generated:', {
+      userId: user._id.toString(),
+      tokensGenerated: !!tokens.accessToken && !!tokens.refreshToken
+    });
 
     return createResponse(res, httpStatus.OK, "New tokens generated successfully", {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      accessTokenExpiresAt: tokens.accessTokenExpiresAt,
-      refreshTokenExpiresAt: tokens.refreshTokenExpiresAt
+      accessTokenExpiresAt: tokens.accessExpiration,
+      refreshTokenExpiresAt: tokens.refreshExpiration
     });
   } catch (error) {
     console.error("Error in generateToken:", error);

@@ -19,7 +19,6 @@
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "cross-env": "^7.0.3",
     "crypto-js": "^4.2.0",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
@@ -44,5 +43,8 @@
     "pm2": "^5.3.1",
     "twilio": "^5.0.3",
     "winston": "^3.9.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   }
 }

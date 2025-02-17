@@ -1,10 +1,22 @@
 const mongoose = require("mongoose");
 const constants = require("../common/utils/constants");
 
+// Define the refresh token schema
+const refreshTokenSchema = new mongoose.Schema({
+  token: {
+    type: String,
+    required: true
+  },
+  expiresAt: {
+    type: Date,
+    required: true
+  }
+}, { _id: false }); // Disable _id for subdocuments
+
 const userSchema = new mongoose.Schema(
   {
     profileImage: String,
-    userName: { type: String, unique: true },
+    userName: { type: String, unique: true, sparse: true },
     name: String,
     email: String,
     mobileNo: String,
@@ -13,7 +25,21 @@ const userSchema = new mongoose.Schema(
     },
     teacherId: String,
     teacherIdCard: String,
-    deviceTokens: [],
+    deviceTokens: {
+      type: [String],
+      default: []
+    },
+    refreshTokens: {
+      type: [refreshTokenSchema],
+      default: [],
+      validate: {
+        validator: function(tokens) {
+          // Ensure we don't exceed 5 tokens
+          return tokens.length <= 5;
+        },
+        message: 'Cannot have more than 5 refresh tokens'
+      }
+    },
     countryCode: String,
     isOnboarded: { type: Boolean, default: false },
     teacherRoleApproved: {
@@ -26,18 +52,17 @@ const userSchema = new mongoose.Schema(
       ],
     },
     location: String,
-    latlong: {
+    geometry: {
       type: {
         type: String,
         enum: ['Point'],
-        // required: true,
+        default: 'Point'
       },
       coordinates: {
         type: [Number],
-        // required: true,
-      },
+        default: [0, 0]
+      }
     },
-
     role: {
       type: String,
       enum: [
@@ -53,26 +78,18 @@ const userSchema = new mongoose.Schema(
     instagramUrl: String,
     nearByVisible: { type: Boolean, default: false },
     locationSharing: { type: Boolean, default: false },
-
     teacherRequestHandledBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-    },
-    //notificationEnabled: { type: Boolean, default: false },  // New field
-    refreshTokens: [{
-      token: String,
-      expiresAt: Date
-    }]
-
+    }
   },
   {
     timestamps: true,
   }
 );
 
-//userSchema.index({ "latlong.coordinates": "2dsphere" });
-userSchema.index({ latlong: '2dsphere' });
-
+// Create 2dsphere index for geospatial queries
+userSchema.index({ geometry: '2dsphere' });
 
 const User = mongoose.model("User", userSchema);
 

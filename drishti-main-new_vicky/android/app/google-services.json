@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "707972016934",
+    "firebase_url": "https://srisridrishti-c1673-default-rtdb.firebaseio.com",
+    "project_id": "srisridrishti-c1673",
+    "storage_bucket": "srisridrishti-c1673.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707972016934:android:ec46a46a230125064c2fe7",
+        "android_client_info": {
+          "package_name": "com.srisridrishti.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDmtKuERLBt-t-j-TYUDGs6VYc-PHBw9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

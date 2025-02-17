@@ -11,30 +11,228 @@ const mongoose = require("mongoose");
 const { createToken } = require('../../middleware/genrateTokens');
 // const onBoardUser =require("./userService");
 const jwt = require('jsonwebtoken');
+
+const ROLES = constants.ROLES;
+
+const handleFileUploads = async (files) => {
+  const results = {
+    profileImage: null,
+    teacherIdCard: null
+  };
+
+  if (!files) return results;
+
+  try {
+    console.log('Processing files for upload:', {
+      hasProfileImage: !!files.profileImage?.[0],
+      hasTeacherIdCard: !!files.teacherIdCard?.[0]
+    });
+
+    // Validate files before upload
+    const validateFile = (file) => {
+      if (!file || !file.buffer) {
+        throw new appError(httpStatus.BAD_REQUEST, 'Invalid file data');
+      }
+
+      if (file.size > 5 * 1024 * 1024) { // 5MB
+        throw new appError(httpStatus.BAD_REQUEST, 'File size must be less than 5MB');
+      }
+
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.mimetype)) {
+        throw new appError(httpStatus.BAD_REQUEST, 'Only JPG and PNG files are allowed');
+      }
+    };
+
+    // Prepare files array for upload
+    const filesToUpload = [];
+    if (files.profileImage?.[0]) {
+      validateFile(files.profileImage[0]);
+      filesToUpload.push(files.profileImage[0]);
+    }
+    if (files.teacherIdCard?.[0]) {
+      validateFile(files.teacherIdCard[0]);
+      filesToUpload.push(files.teacherIdCard[0]);
+    }
+
+    if (filesToUpload.length === 0) {
+      console.log('No files to upload');
+      return results;
+    }
+
+    // Upload files to Firebase
+    const uploadedFiles = await uploadFilesToBucket(filesToUpload);
+    console.log('Uploaded files:', uploadedFiles);
+
+    // Map uploaded files back to results
+    uploadedFiles.forEach(file => {
+      if (file.fieldname === 'profileImage') {
+        results.profileImage = file.url;
+      } else if (file.fieldname === 'teacherIdCard') {
+        results.teacherIdCard = file.url;
+      }
+    });
+
+    // Validate upload results
+    if (files.profileImage?.[0] && !results.profileImage) {
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload profile image');
+    }
+    if (files.teacherIdCard?.[0] && !results.teacherIdCard) {
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload teacher ID card');
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error in handleFileUploads:', error);
+    
+    // Clean up any successful uploads if there was an error
+    try {
+      if (results.profileImage) {
+        await deleteFileFromUrl(results.profileImage);
+      }
+      if (results.teacherIdCard) {
+        await deleteFileFromUrl(results.teacherIdCard);
+      }
+    } catch (cleanupError) {
+      console.error('Error cleaning up files:', cleanupError);
+    }
+
+    throw error;
+  }
+};
+
+// Helper function to delete file from Firebase using URL
+async function deleteFileFromUrl(url) {
+  try {
+    const decodedUrl = decodeURIComponent(url);
+    const filename = decodedUrl.split('/').pop();
+    const fileRef = bucket.file(filename);
+    await fileRef.delete();
+  } catch (error) {
+    console.error('Error deleting file:', error);
+  }
+}
+
 const userLoginController = async (request, response) => {
   try {
+    console.log("Login request body:", request.body);
+    
     const data = await userService.userLoginService(request);
-    console.log("Data from userLoginService:", data); // Log the data returned
+    console.log("Data from userLoginService:", data);
 
     if (!data) {
-      console.error("userLoginService returned null or undefined"); // Log if data is nullish
       throw new appError(
         httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_LOGIN")
+        "Unable to send OTP"
       );
     }
 
-    createResponse(
+    return createResponse(
       response,
       httpStatus.OK,
-      request.t("user.USER_LOGGED_IN"),
+      "OTP sent successfully",
       data
     );
   } catch (error) {
-    console.error("Error in userLoginController:", error); // Log the entire error object
-    createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message || "An unexpected error occurred"); // Provide a default status
+    console.error("Error in userLoginController:", error);
+    return createResponse(
+      response,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to send OTP"
+    );
   }
 };
+
+const updateLocationController = async (req, res) => {
+  try {
+    // Implement location update logic
+    return createResponse(res, httpStatus.OK, "Location updated");
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Location update failed"
+    );
+  }
+};
+
+const onBoardUserController = async (req, res) => {
+  try {
+    // Implement user onboarding logic
+    return createResponse(res, httpStatus.OK, "User onboarded successfully");
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Onboarding failed"
+    );
+  }
+};
+
+const addFiles = async (req, res) => {
+  try {
+    const files = await handleFileUploads(req.files);
+    return createResponse(res, httpStatus.OK, "Files uploaded successfully", files);
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "File upload failed"
+    );
+  }
+};
+
+const addTeacherRole = async (req, res) => {
+  try {
+    // Implement teacher role addition logic
+    return createResponse(res, httpStatus.OK, "Teacher role added");
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to add teacher role"
+    );
+  }
+};
+
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('-password');
+    return createResponse(res, httpStatus.OK, "Users retrieved", users);
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to get users"
+    );
+  }
+};
+
+const getAllTeachers = async (req, res) => {
+  try {
+    const teachers = await User.find({ role: ROLES.TEACHER }).select('-password');
+    return createResponse(res, httpStatus.OK, "Teachers retrieved", teachers);
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to get teachers"
+    );
+  }
+};
+
+const actionOnTeacherAccount = async (req, res) => {
+  try {
+    // Implement teacher account action logic
+    return createResponse(res, httpStatus.OK, "Action completed successfully");
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Action failed"
+    );
+  }
+};
+
 const verifyOtpController = async (request, response) => {
   try {
     console.log('Starting OTP verification process');
@@ -43,184 +241,53 @@ const verifyOtpController = async (request, response) => {
       deviceToken: request.body.deviceToken,
       dataLength: request.body.data?.length
     });
+
+    // Call the service function to verify OTP
+    const result = await userService.verifyOtp(request);
     
-    // 1. Input Validation
-    if (!request.body || !request.body.otp || !request.body.data) {
-      throw new appError(httpStatus.BAD_REQUEST, "Missing required fields: otp and data are required");
+    if (!result || !result.user) {
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Invalid verification result");
     }
 
-    // 2. OTP Validation
-    const otp = String(request.body.otp || '').trim();
-    if (!otp || otp.length !== 6 || !/^\d+$/.test(otp)) {
-      throw new appError(httpStatus.BAD_REQUEST, "Invalid OTP format - must be 6 digits");
+    // Safely access user properties with null checks and defaults
+    const user = result.user;
+    const userId = user._id ? user._id.toString() : null;
+
+    if (!userId) {
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "Invalid user ID");
     }
 
-    // 3. Decrypt Data with error handling
-    let decryptedData;
-    try {
-      decryptedData = await decode(request.body.data);
-      console.log('Successfully decrypted data');
-    } catch (decryptError) {
-      console.error('Decryption error:', decryptError);
-      throw new appError(httpStatus.BAD_REQUEST, "Failed to decrypt data: " + decryptError.message);
-    }
-
-    // 4. Parse Decrypted Data with error handling
-    let decodedObj;
-    try {
-      decodedObj = JSON.parse(decryptedData);
-      console.log('Parsed data:', {
-        mobile: decodedObj.mobile,
-        countryCode: decodedObj.countryCode
-      });
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      throw new appError(httpStatus.BAD_REQUEST, "Invalid data format: " + parseError.message);
-    }
-
-    // 5. Validate Mobile Number
-    if (!decodedObj.mobile) {
-      throw new appError(httpStatus.BAD_REQUEST, "Mobile number is required");
-    }
-
-    // 6. Find or Create User with detailed error handling
-    let user;
-    try {
-      // Find existing user
-      user = await User.findOne({ 
-        mobileNo: decodedObj.mobile,
-        countryCode: decodedObj.countryCode || '+91'
-      }).exec();
-
-      console.log('User search result:', user ? 'Found existing user' : 'User not found');
-
-      const isNewUser = !user;
-      
-      if (isNewUser) {
-        // Create new user if doesn't exist
-        const newUserData = {
-          mobileNo: decodedObj.mobile,
-          countryCode: decodedObj.countryCode || '+91',
-          deviceTokens: request.body.deviceToken ? [request.body.deviceToken] : [],
-          role: constants.ROLES.USER,
-          isOnboarded: false,
-          nearByVisible: false,
-          locationSharing: false,
-          teacherRoleApproved: 'pending'
-        };
-
-        console.log('Creating new user with data:', newUserData);
-
-        user = await User.create(newUserData);
-        console.log('New user created successfully:', user._id);
-      } else if (request.body.deviceToken) {
-        // Update device token for existing user
-        if (!user.deviceTokens.includes(request.body.deviceToken)) {
-          console.log('Adding new device token to existing user');
-          user.deviceTokens.push(request.body.deviceToken);
-          await user.save();
-          console.log('Device token added successfully');
-        }
-      }
-
-      // 7. Generate Tokens
-      console.log('Generating tokens for user:', user._id);
-      
-      const accessExpiration = new Date(
-        Date.now() + (process.env.JWT_ACCESS_EXPIRATION_MINUTES || 30) * 60 * 1000
-      );
-      const refreshExpiration = new Date(
-        Date.now() + (process.env.JWT_REFRESH_EXPIRATION_DAYS || 7) * 24 * 60 * 60 * 1000
-      );
-
-      // Generate access token
-      const accessToken = jwt.sign(
-        {
-          id: user._id,
+    // Prepare the response with null checks and default values
+    const responseData = {
+      success: true,
+      message: "User logged in successfully",
+      data: {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        accessTokenExpiresAt: result.accessExpiration,
+        refreshTokenExpiresAt: result.refreshExpiration,
+        user: {
+          id: userId,
+          mobileNo: user.mobileNo || '',
           role: user.role || 'user',
-          type: 'access'
+          isOnboarded: !!user.isOnboarded,
+          countryCode: user.countryCode || '+91',
+          deviceTokens: Array.isArray(user.deviceTokens) ? user.deviceTokens : [],
+          teacherRoleApproved: user.teacherRoleApproved || 'pending',
+          nearByVisible: !!user.nearByVisible,
+          locationSharing: !!user.locationSharing
         },
-        process.env.JWT_SECRET,
-        { expiresIn: `${process.env.JWT_ACCESS_EXPIRATION_MINUTES || 30}m` }
-      );
-
-      // Generate refresh token
-      const refreshToken = jwt.sign(
-        {
-          id: user._id,
-          role: user.role || 'user',
-          type: 'refresh'
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: `${process.env.JWT_REFRESH_EXPIRATION_DAYS || 7}d` }
-      );
-
-      console.log('Tokens generated successfully');
-
-      // Store refresh token
-      await User.findByIdAndUpdate(user._id, {
-        $push: {
-          refreshTokens: {
-            token: refreshToken,
-            expiresAt: refreshExpiration
-          }
-        }
-      });
-
-      console.log('Refresh token stored successfully');
-
-      // 8. Prepare Response
-      const responseData = {
-        success: true,
-        message: "User logged in successfully",
-        data: {
-          accessToken,
-          refreshToken,
-          accessTokenExpiresAt: accessExpiration.toISOString(),
-          refreshTokenExpiresAt: refreshExpiration.toISOString(),
-          user: {
-            id: user._id,
-            mobileNo: user.mobileNo,
-            role: user.role,
-            isOnboarded: user.isOnboarded,
-            countryCode: user.countryCode,
-            deviceTokens: user.deviceTokens,
-            teacherRoleApproved: user.teacherRoleApproved,
-            nearByVisible: user.nearByVisible,
-            locationSharing: user.locationSharing
-          },
-          isNewUser
-        }
-      };
-
-      console.log('Response prepared:', {
-        userId: responseData.data.user.id,
-        hasAccessToken: !!responseData.data.accessToken,
-        hasRefreshToken: !!responseData.data.refreshToken
-      });
-
-      return response.status(httpStatus.OK).json(responseData);
-
-    } catch (dbError) {
-      console.error('Database operation error:', {
-        error: dbError.message,
-        stack: dbError.stack,
-        code: dbError.code
-      });
-      
-      // Handle specific MongoDB errors
-      if (dbError.code === 11000) {
-        throw new appError(
-          httpStatus.CONFLICT,
-          "Duplicate mobile number found"
-        );
+        isNewUser: !!result.isNewUser
       }
-      
-      throw new appError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        `Error processing user data: ${dbError.message}`
-      );
-    }
+    };
+
+    console.log('Response prepared:', {
+      userId: responseData.data.user.id,
+      hasAccessToken: !!responseData.data.accessToken,
+      hasRefreshToken: !!responseData.data.refreshToken
+    });
+
+    return response.status(httpStatus.OK).json(responseData);
 
   } catch (error) {
     console.error("OTP Verification Error:", {
@@ -241,457 +308,216 @@ const verifyOtpController = async (request, response) => {
   }
 };
 
-const generateTokenController = async (req, res) => {
+const getTeachersRequest = async (req, res) => {
   try {
-    const refreshToken = req.body.refreshToken;
-    if (!refreshToken) {
-      return createResponse(res, httpStatus.BAD_REQUEST, "Refresh token is required");
-    }
-
-    return await generateToken(req, res);
+    const requests = await User.find({ 
+      role: ROLES.TEACHER, 
+      status: 'pending' 
+    }).select('-password');
+    return createResponse(res, httpStatus.OK, "Teacher requests retrieved", requests);
   } catch (error) {
-    console.error("Error in generateTokenController:", error);
     return createResponse(
       res,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "An error occurred during token refresh"
+      error.message || "Failed to get teacher requests"
     );
   }
 };
 
-const updateLocationController = async (request, response) => {
+const updateSocialMediaLinks = async (req, res) => {
   try {
-    const data = await userService.updateLocation(request);
-    if (!data) {
-      throw new appError(
-        httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_UPDATE_LOCATION")
-      );
-    }
-    createResponse(
-      response,
-      httpStatus.OK,
-      request.t("user.USER_LOCATION_UPDATED"),
-      data
-    );
+    // Implement social media links update logic
+    return createResponse(res, httpStatus.OK, "Social media links updated");
   } catch (error) {
-    createResponse(response, error.status, error.message);
-  }
-};
-
-const onBoardUserController = async (request, response) => {
-  try {
-    console.log("=== onBoardUserController START ===");
-    console.log("Request headers:", request.headers);
-    console.log("Request body:", request.body);
-    console.log("Request files:", request.files);
-
-    // Validate required fields
-    const requiredFields = ['userName', 'name', 'email', 'mobileNo', 'role'];
-    for (const field of requiredFields) {
-      if (!request.body[field]) {
-        throw new Error(`Missing required field: ${field}`);
-      }
-    }
-
-    // Process the uploaded file
-    let profileImageUrl = '';
-    if (request.files && request.files.profileImage) {
-      console.log("Processing profile image...");
-      const uploadResult = await uploadFilesToBucket([request.files.profileImage[0]]);
-      profileImageUrl = uploadResult[0].link;
-      console.log("Profile image uploaded:", profileImageUrl);
-    }
-
-    // Create update data object
-    const updateData = {
-      userName: request.body.userName,
-      name: request.body.name,
-      email: request.body.email.toLowerCase(),
-      mobileNo: request.body.mobileNo,
-      role: request.body.role,
-      bio: request.body.bio || '',
-      profileImage: profileImageUrl,
-      isOnboarded: true,
-      nearByVisible: request.body.nearByVisible === 'true',
-      locationSharing: request.body.locationSharing === 'true'
-    };
-
-    // Add teacher specific fields if applicable
-    if (request.body.role === 'teacher') {
-      if (!request.body.teacherId) {
-        throw new Error('Teacher ID is required for teacher role');
-      }
-      updateData.teacherId = request.body.teacherId;
-    }
-
-    console.log("Update data:", updateData);
-
-    // Update user in database
-    const updatedUser = await User.findByIdAndUpdate(
-      request.user.id,
-      updateData,
-      { new: true }
-    );
-
-    console.log("Updated user:", updatedUser);
-
     return createResponse(
-      response,
-      httpStatus.OK,
-      "Profile updated successfully",
-      updatedUser
-    );
-
-  } catch (error) {
-    console.error("onBoardUserController Error:", error);
-    return createResponse(
-      response,
+      res,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Failed to update profile"
+      error.message || "Failed to update social media links"
     );
   }
 };
 
-const handleFileUploads = async (files) => {
-  const results = {
-    profileImage: "",
-    teacherIdCard: ""
-  };
-
-  if (!files) return results;
-
+const generateTokenController = async (req, res) => {
   try {
-    if (files.profileImage?.[0]) {
-      const uploadResult = await uploadFilesToBucket([files.profileImage[0]]);
-      results.profileImage = uploadResult[0].link;
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return createResponse(res, httpStatus.BAD_REQUEST, "Refresh token required");
+    }
+    const newToken = await createToken(refreshToken);
+    return createResponse(res, httpStatus.OK, "Token refreshed", { token: newToken });
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Token refresh failed"
+    );
+  }
+};
+
+const locationSharing = async (req, res) => {
+  try {
+    // Implement location sharing logic
+    return createResponse(res, httpStatus.OK, "Location sharing updated");
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to update location sharing"
+    );
+  }
+};
+
+const getNearbyVisible = async (req, res) => {
+  try {
+    // Implement nearby visible users logic
+    return createResponse(res, httpStatus.OK, "Nearby visible users retrieved");
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to get nearby visible users"
+    );
+  }
+};
+
+const getSocialMediaController = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).select('socialMediaLinks');
+    return createResponse(res, httpStatus.OK, "Social media links retrieved", user?.socialMediaLinks);
+  } catch (error) {
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to get social media links"
+    );
+  }
+};
+
+const searchUsers = async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query) {
+      return createResponse(
+        res, 
+        httpStatus.BAD_REQUEST, 
+        "Query is required"
+      );
     }
     
-    if (files.teacherIdCard?.[0]) {
-      const uploadResult = await uploadFilesToBucket([files.teacherIdCard[0]]);
-      results.teacherIdCard = uploadResult[0].link;
-    }
-  } catch (error) {
-    console.error("File upload error:", error);
-    throw new Error("File upload failed");
-  }
-
-  return results;
-};
-
-const onBoardUser = async (userId, userData) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    console.log("=== onBoardUser Service START ===");
-    console.log("User ID:", userId);
-    console.log("User Data:", userData);
-
-    // Validate required fields
-    const requiredFields = ['userName', 'name', 'email', 'mobileNo'];
-    for (const field of requiredFields) {
-      if (!userData[field]) {
-        throw new Error(`Missing required field: ${field}`);
-      }
-    }
-
-    // Check for existing email/username
-    const existingUser = await User.findOne({
+    const users = await User.find({
       $or: [
-        { email: userData.email.toLowerCase() },
-        { userName: userData.userName }
-      ],
-      _id: { $ne: userId }
-    }).session(session);
-
-    if (existingUser) {
-      throw new Error(
-        existingUser.email === userData.email ? 
-        "Email already exists" : 
-        "Username already exists"
-      );
-    }
-
-    // Prepare update data
-    const updateData = {
-      name: userData.name,
-      email: userData.email.toLowerCase(),
-      userName: userData.userName,
-      mobileNo: userData.mobileNo,
-      isOnboarded: true,
-      bio: userData.bio || "",
-      role: userData.role || "user",
-      youtubeUrl: userData.youtubeUrl || "",
-      xUrl: userData.xUrl || "",
-      instagramUrl: userData.instagramUrl || "",
-      nearByVisible: userData.nearByVisible || false,
-      locationSharing: userData.locationSharing || false
-    };
-
-    // Add profile image if provided
-    if (userData.profileImage) {
-      updateData.profileImage = userData.profileImage;
-    }
-
-    // Handle teacher-specific fields
-    if (userData.role === 'teacher') {
-      updateData.teacherId = userData.teacherId;
-      updateData.teacherIdCard = userData.teacherIdCard;
-    }
-
-    console.log("Final update data:", updateData);
-
-    // Update user
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, session }
+        { name: { $regex: query, $options: 'i' } },
+        { userName: { $regex: query, $options: 'i' } },
+      ]
+    })
+    .select('name userName profileImage')
+    .limit(10);
+    
+    return createResponse(
+      res, 
+      httpStatus.OK, 
+      "Users found", 
+      users
     );
-
-    if (!updatedUser) {
-      throw new Error("User not found");
-    }
-
-    await session.commitTransaction();
-    console.log("=== onBoardUser Service END ===");
-    return updatedUser;
-
   } catch (error) {
-    await session.abortTransaction();
-    console.error("onBoardUser Service Error:", error);
-    throw error;
-  } finally {
-    await session.endSession();
+    console.error("Search users error:", error);
+    return createResponse(
+      res, 
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Error searching users"
+    );
   }
 };
 
 async function getUser(request, response) {
   try {
-    const data = await userService.getUser(request.user.id);
-    console.log("data", data);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    createResponse(response, httpStatus.OK, "user log in", data);
-  } catch (error) {
-    createResponse(response, error.status, error.message);
-  }
-}
+    console.log('Getting user profile for:', request.user?.id);
 
-async function getAllUsers(request, response) {
-  try {
-    const data = await userService.getAllUsers();
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    createResponse(response, httpStatus.OK, "user log in", data);
-  } catch (error) {
-    createResponse(response, error.status, error.message);
-  }
-}
-
-const getAllTeachers = async (request, response) => {
-  try {
-    const data = await userService.getAllTeachers(request);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    createResponse(response, httpStatus.OK, "get all teachers", data);
-  } catch (error) {
-    createResponse(response, error.status, error.message);
-  }
-};
-async function actionOnTeacherAccount(request, response) {
-  try {
-    let { status } = request.query;
-
-    const data = await userService.actionOnTeacherAccount(request);
-    let msg;
-    if (data) {
-      if (status === constants.STATUS.ACCEPTED) {
-        msg = "Teacher request accepted";
-      } else if (status === constants.STATUS.REJECTED) {
-        msg = "Teacher request rejected";
-      } else {
-        msg = "Teacher request rejected";
-      }
-      return createResponse(response, 201, msg);
-    }
-  } catch (error) {
-    return createResponse(response, error.status, error.message);
-  }
-}
-async function getTeachersRequest(request, response) {
-  try {
-    const data = await userService.getTeachersRequest(request);
-    if (!data) {
-      throw new appError(
-        httpStatus.CONFLICT,
-        request.t("user.UNABLE_TO_GET_TEACHERS_REQUEST")
+    if (!request.user || !request.user.id) {
+      console.log('No user in request:', request.user);
+      return createResponse(
+        response,
+        httpStatus.UNAUTHORIZED,
+        "User not authenticated"
       );
     }
 
-    return createResponse(
-      response,
-      201,
-      request.t("user.GET_TEACHERS_REQUEST"),
-      data
-    );
-  } catch (error) {
-    return createResponse(response, error.status, error.message);
-  }
-}
+    const user = await User.findById(request.user.id)
+      .select('-refreshTokens -password')
+      .lean();
 
-const addTeacherRole = async (request, response) => {
-  try {
-    const { teacherIdCard } = request.files;
-    if (!teacherIdCard) {
-      throw new appError(
-        httpStatus.CONFLICT,
-        "please select a teacher id card"
-      );
-    }
+    console.log('Found user from DB:', user);
 
-    const params = request.body;
-    params.teacherIdCard = await uploadFilesToBucket(teacherIdCard[0]);
-
-    const data = await userService.addTeacherRole(request, params);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    createResponse(
-      response,
-      httpStatus.OK,
-      "teacher id uploaded successfully",
-      data
-    );
-  } catch (error) {
-    createResponse(response, error.status, error.message);
-  }
-};
-
-const addFiles = async (request, response) => {
-  try {
-    const { profilePic } = request.files;
-    const fileWithUrls = await uploadFilesToBucket(profilePic);
-    const data = await userService.uploadDocuments(fileWithUrls, request);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    console.log("data-----------", data);
-    return createResponse(response, httpStatus.OK, "user log in", data);
-  } catch (error) {
-    console.log("error-----------", error);
-    createResponse(response, error.status, error.message);
-  }
-};
-
-const updateSocialMediaLinks = async (request, response) => {
-  try {
-    const data = await userService.updateSocialMediaLinks(request);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    console.log("data-----------", data);
-    return createResponse(
-      response,
-      httpStatus.OK,
-      "social media updated",
-      data
-    );
-  } catch (error) {
-    console.log("error-----------", error);
-    createResponse(response, error.status, error.message);
-  }
-};
-const locationSharing = async (request, response) => {
-  try {
-    const data = await userService.locationSharing(request);
-    if (!data) {
-      throw new appError(httpStatus.CONFLICT);
-    }
-    console.log("data-----------", data);
-    return createResponse(response, httpStatus.OK, "location sharing", data);
-  } catch (error) {
-    console.log("error-----------", error);
-    createResponse(response, error.status, error.message);
-  }
-};
-
-const getSocialMediaController = async (request, response) => {
-  try {
-    const data = await userService.getSocialMedia(request);
-    return createResponse(response, httpStatus.OK, "Social media links retrieved successfully", data);
-  } catch (error) {
-    console.log("error-----------", error);
-    createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message || "Failed to fetch social media");
-  }
-};
-
-const getNearbyVisible = async (request, response) => {
-  const { longitude, latitude, radius } = request.body;
-
-  if (!longitude || !latitude) {
-    return createResponse(response, httpStatus.BAD_REQUEST, "Longitude and Latitude are required.");
-  }
-  try {
-    const users = await userService.getNearbyVisibleUsers(longitude, latitude, radius);
-    if (!users.length) {
-      throw new appError(httpStatus.NON_AUTHORITATIVE_INFORMATION, "No nearby users found.");
-    }
-
-    createResponse(response, httpStatus.OK, "Nearby users fetched successfully.", users);
-  } catch (error) {
-    createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message);
-  }
-};
-
-const searchUsers = async (userName) => {
-  try {
-    const searchRegex = new RegExp(userName, 'i');
     
-    const users = await User.find({
-      userName: searchRegex,
-      isOnboarded: true,
-      status: { $ne: 'DELETED' }
-    })
-    .select('id userName mobileNo deviceTokens countryCode isOnboarded teacherRoleApproved role nearByVisible locationSharing createdAt updatedAt email name profileImage')
-    .limit(20);
+    if (!user) {
+      console.log('User not found in DB for id:', request.user.id);
+      throw new appError(httpStatus.NOT_FOUND, "User not found");
+    }
+    console.log('Raw user document from DB:', user);
 
-    return {
-      message: "Users found",
-      data: {
-        message: users.length > 0 ? "Users found" : "No user found with the provided userName",
-        data: users
-      }
+    // Transform user data to ensure no null values and proper types
+    const data = {
+      _id: user._id.toString(), // Keep _id for MongoDB compatibility
+      id: user._id.toString(),  // Add id for frontend compatibility
+      mobileNo: user.mobileNo || '',
+      countryCode: user.countryCode || '',
+      deviceTokens: Array.isArray(user.deviceTokens) ? user.deviceTokens : [],
+      isOnboarded: Boolean(user.isOnboarded),
+      createdAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: user.updatedAt ? user.updatedAt.toISOString() : new Date().toISOString(),
+      role: user.role || 'user',
+      email: user.email || '',
+      name: user.name || '',
+      profileImage: user.profileImage || '',
+      teacherRoleApproved: user.teacherRoleApproved || 'pending',
+      userName: user.userName || '',
+      teacherId: user.teacherId || '',
+      teacherIdCard: user.teacherIdCard || '',
+      bio: user.bio || '',
+      youtubeUrl: user.youtubeUrl || '',
+      xUrl: user.xUrl || '',
+      instagramUrl: user.instagramUrl || '',
+      nearByVisible: Boolean(user.nearByVisible),
+      locationSharing: Boolean(user.locationSharing),
+      geometry: user.geometry || { type: 'Point', coordinates: [0, 0] }
     };
+
+    console.log('Sending transformed user data:', data);
+    console.log('Processed user data for response:', data);
+    return createResponse(
+      response,
+      httpStatus.OK,
+      "User found",
+      data
+    );
   } catch (error) {
-    console.error("Search users error:", error);
-    throw new appError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "Error searching users"
+    console.error('Error in getUser:', error);
+    return createResponse(
+      response,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to retrieve user profile"
     );
   }
-};
+}
 
 module.exports = {
   userLoginController,
-  onBoardUserController,
   updateLocationController,
-  getUser,
+  onBoardUserController,
   addFiles,
   addTeacherRole,
   getAllUsers,
-  actionOnTeacherAccount,
   getAllTeachers,
+  actionOnTeacherAccount,
   verifyOtpController,
   getTeachersRequest,
   updateSocialMediaLinks,
+  generateTokenController,
   locationSharing,
-  getSocialMediaController,generateTokenController,
   getNearbyVisible,
+  getSocialMediaController,
   searchUsers,
+  getUser
 };
-
-

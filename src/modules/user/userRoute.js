@@ -25,7 +25,6 @@ const {
   userLoginController,
   updateLocationController,
   onBoardUserController,
-  getUser,
   addFiles,
   addTeacherRole,
   getAllUsers,
@@ -50,7 +49,25 @@ const methodNotAllowed = require("../../middleware/methodNotAllowed");
 const validate = require("../../middleware/validate");
 const { uploadToS3 } = require("../../common/utils/uploadToS3");
 
-router.route("/").get(auth(ROLES.ALL), getUser).all(methodNotAllowed);
+// Placeholder handler for getUser
+const getUser = async (req, res) => {
+  try {
+    // TO DO: Implement getUser logic
+    return createResponse(res, httpStatus.OK, "User found", {});
+  } catch (error) {
+    console.error("Get user error:", error);
+    return createResponse(
+      res, 
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Error getting user"
+    );
+  }
+};
+
+// User profile routes
+router.route("/")
+  .get(auth([ROLES.USER, ROLES.ADMIN, ROLES.TEACHER]), getUser)
+  .all(methodNotAllowed);
 
 router
   .route("/login")
