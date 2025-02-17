@@ -48,11 +48,36 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   late TextEditingController _emailController;
   late TextEditingController _numberController, _teacherIdController;
   late bool _isTeacher;
+  bool _isLoading = true;
 
   File? profileImage;
   File? _imageFile;
   bool documentUploaded = false;
   ApiBloc apiBloc = ApiBloc();
+
+  // Add this variable to store profile image URL
+  String? profileImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize controllers
+    _usernameController = TextEditingController();
+    _fullNameController = TextEditingController();
+    _emailController = TextEditingController();
+    _numberController = TextEditingController();
+    _teacherIdController = TextEditingController();
+    _isTeacher = false;
+
+    // Load profile data immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProfileDetailsBloc>().add(GetProfileDetails());
+    });
+  }
+
+  void _loadProfileData() {
+    context.read<ProfileDetailsBloc>().add(GetProfileDetails());
+  }
 
   @override
   void dispose() {
@@ -65,21 +90,23 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize all controllers
-    _usernameController = TextEditingController();
-    _fullNameController = TextEditingController();
-    _emailController = TextEditingController();
-    _numberController = TextEditingController();
-    _teacherIdController = TextEditingController();
-    _isTeacher = false;
+  void _updateControllers(UserDetailsModel userDetails) {
+    setState(() {
+      _usernameController.text = userDetails.userName ?? '';
+      _nameController.text = userDetails.name ?? '';
+      _fullNameController.text = userDetails.name ?? '';
+      _emailController.text = userDetails.email ?? '';
+      _numberController.text = userDetails.mobileNo ?? '';
+      _teacherIdController.text = userDetails.teacherId ?? '';
+      _isTeacher = userDetails.role.toLowerCase() == 'teacher';
+      _selectedOption.value = _isTeacher ? YesNoOption.yes : YesNoOption.no;
+      _isLoading = false;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final currentState = context.read<ProfileDetailsBloc>().state;
-      if (currentState is! ProfileDetailsLoadedSuccessfully) {
-        context.read<ProfileDetailsBloc>().add(GetProfileDetails());
+      // Set profile image if exists
+      if (userDetails.profileImage != null && userDetails.profileImage.isNotEmpty) {
+        setState(() {
+          profileImageUrl = userDetails.profileImage;
+        });
       }
     });
   }
@@ -88,77 +115,96 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: profileAppbar(context), // Replace with your app bar widget
-      body: BlocBuilder<ProfileDetailsBloc, ProfileDetailsState>(
-        builder: (context, state) {
+      appBar: profileAppbar(context),
+      body: BlocConsumer<ProfileDetailsBloc, ProfileDetailsState>(
+        listener: (context, state) {
           if (state is ProfileDetailsLoadedSuccessfully) {
-            if (_selectedOption.value == YesNoOption.none) {
-              final UserDetailsModel? userDetails = state.profileResponse.data;
-              _usernameController.text = userDetails?.userName ?? "";
-              _nameController.text = userDetails?.name ?? "";
-              _emailController.text = userDetails?.email ?? "";
-              _numberController.text = userDetails?.mobileNo ?? "";
-              // Print user details to debug
-              print(
-                  "User Details: ${userDetails?.toJson()}"); // Assuming toJson() method exists
-              print("Username: ${userDetails?.userName}");
-              print("Name: ${userDetails?.name}");
-              print("Email: ${userDetails?.email}");
-              print("Mobile No: ${userDetails?.mobileNo}");
-              print("Role: ${userDetails?.role}");
+            final userDetails = state.profileResponse.data;
+            if (userDetails != null) {
+              _updateControllers(userDetails);
+            }
+          } else if (state is FailedToFetchProfileDetails) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to load profile: ${state.profileResponse.message}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        builder: (context, state) {
+          if (state is ProfileDetailsLoading || _isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              if (userDetails?.role == "teacher" &&
-                      userDetails?.teacherRoleApproved == 'accepted' ||
-                  userDetails?.role == "admin") {
-                return TeacherProfileScreen(userDetails: userDetails!);
-              } else if (userDetails?.role == "user" &&
-                      userDetails?.email != null ||
-                  userDetails?.role == "teacher") {
+          if (state is ProfileDetailsLoadedSuccessfully) {
+            final userDetails = state.profileResponse.data;
+            if (userDetails != null) {
+              if ((userDetails.role.toLowerCase() == "teacher" &&
+                      userDetails.teacherRoleApproved.toLowerCase() == 'accepted') ||
+                  userDetails.role.toLowerCase() == "admin") {
+                return TeacherProfileScreen(userDetails: userDetails);
+              } else if (userDetails.email.isNotEmpty ||
+                  userDetails.role.toLowerCase() == "teacher") {
                 return buildMainForm();
               }
             }
-            return buildMainForm();
           }
-          return const Center(child: CircularProgressIndicator());
+
+          return buildMainForm();
         },
       ),
     );
   }
 
   Widget buildMainForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 15.0),
-      child: Form(
-        key: _formKey,
-        child: BlocListener<ProfileBloc, ProfileState>(
-          listener: (context, state) async {
-            if (state is ProfileDetailsAddedSuccessfully) {
-              await SharedPreferencesHelper.setOnboardingComplete(
-                  true); // Replace with your shared preferences helper
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) {
-                  return const BottomNavigationScreen(); // Replace with your bottom navigation screen
-                }),
-                (_) => false,
-              );
-            }
-            if (state is ProfileDetailsAddedFailed) {
-              showToast(
-                  text: state.profileRes.message,
-                  color: Colors.red,
-                  context: context);
-            }
-          },
-          child: Column(
-            children: [
-              profileIconWidget(),
-              const SizedBox(height: 20),
-              buildFormFields(),
-              buildTeacherSelection(),
-              if (_selectedOption.value == YesNoOption.yes)
-                buildTeacherFields(),
-              buildSubmitButton(),
-            ],
+    return BlocListener<ProfileBloc, ProfileState>(
+      listener: (context, state) {
+        if (state is ProfileDetailsAddedSuccessfully) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile updated successfully')),
+          );
+          Navigator.pop(context);  // Return to previous screen after successful update
+        } else if (state is ProfileDetailsAddedFailed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.profileRes.message ?? 'Update failed')),
+          );
+        }
+      },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 15.0),
+        child: Form(
+          key: _formKey,
+          child: BlocListener<ProfileBloc, ProfileState>(
+            listener: (context, state) async {
+              if (state is ProfileDetailsAddedSuccessfully) {
+                await SharedPreferencesHelper.setOnboardingComplete(
+                    true); // Replace with your shared preferences helper
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) {
+                    return const BottomNavigationScreen(); // Replace with your bottom navigation screen
+                  }),
+                  (_) => false,
+                );
+              }
+              if (state is ProfileDetailsAddedFailed) {
+                showToast(
+                    text: state.profileRes.message,
+                    color: Colors.red,
+                    context: context);
+              }
+            },
+            child: Column(
+              children: [
+                profileIconWidget(),
+                const SizedBox(height: 20),
+                buildFormFields(),
+                buildTeacherSelection(),
+                if (_selectedOption.value == YesNoOption.yes)
+                  buildTeacherFields(),
+                buildSubmitButton(),
+              ],
+            ),
           ),
         ),
       ),
@@ -650,6 +696,7 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     }
   }
 
+  // Modify the profileIconWidget to show network image if URL exists
   Widget profileIconWidget() {
     return Align(
       alignment: Alignment.center,
@@ -663,20 +710,36 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                 borderRadius: BorderRadius.circular(50.sp),
                 color: Colors.grey.shade200,
               ),
-              child: profileImage == null
-                  ? Icon(
-                      Icons.person,
-                      color: Colors.grey[400],
-                      size: 70.sp,
-                    )
-                  : ClipOval(
+              child: profileImage != null
+                  ? ClipOval(
                       child: Image.file(
                         profileImage!,
                         width: 70.sp,
                         height: 70.sp,
                         fit: BoxFit.cover,
                       ),
-                    ),
+                    )
+                  : (profileImageUrl != null && profileImageUrl!.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            profileImageUrl!,
+                            width: 70.sp,
+                            height: 70.sp,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.person,
+                                color: Colors.grey[400],
+                                size: 70.sp,
+                              );
+                            },
+                          ),
+                        )
+                      : Icon(
+                          Icons.person,
+                          color: Colors.grey[400],
+                          size: 70.sp,
+                        )),
             ),
           ),
           Positioned(

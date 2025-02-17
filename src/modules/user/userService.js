@@ -125,7 +125,7 @@ const verifyOtp = async (request) => {
 
     if (!user) {
       // Create new user with empty refresh tokens array
-      user = await User.create({
+      const newUser = {
         mobileNo: decodedObj.mobile,
         countryCode: decodedObj.countryCode,
         role: ROLES.USER,
@@ -138,8 +138,19 @@ const verifyOtp = async (request) => {
         profileImage: '',
         teacherRoleApproved: 'pending',
         teacherId: '',
-        teacherIdCard: ''
-      });
+        teacherIdCard: '',
+        geometry: {
+          type: 'Point',
+          coordinates: [0, 0]
+        },
+        nearByVisible: false,
+        locationSharing: false,
+        bio: ''
+      };
+      
+      console.log('Creating new user with data:', newUser);
+      user = await User.create(newUser);
+      console.log('Created new user:', user);
     } else {
       // Update existing user's device token
       if (deviceToken && !user.deviceTokens.includes(deviceToken)) {
@@ -547,7 +558,44 @@ async function updateUser(params, request) {
 }
 
 async function getUser(currentUser) {
-  return await User.findById(currentUser);
+  console.log('getUser service - currentUser:', currentUser);
+  
+  if (!currentUser) {
+    throw new appError(httpStatus.UNAUTHORIZED, 'Authentication required');
+  }
+
+  const user = await User.findById(currentUser)
+    .select('-password -refreshTokens')
+    .lean();
+
+  console.log('getUser service - Found user:', user);
+
+  if (!user) {
+    throw new appError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Transform user data with defaults
+  const userData = {
+    _id: user._id.toString(), // Keep _id for MongoDB compatibility
+    id: user._id.toString(),  // Add id for Flutter compatibility
+    mobileNo: user.mobileNo || '',
+    countryCode: user.countryCode || '+91',
+    deviceTokens: Array.isArray(user.deviceTokens) ? user.deviceTokens : [],
+    isOnboarded: Boolean(user.isOnboarded),
+    role: user.role?.toLowerCase() || 'user',
+    createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+    updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
+    email: user.email || '',
+    name: user.name || '',
+    profileImage: user.profileImage || '',
+    teacherRoleApproved: user.teacherRoleApproved?.toLowerCase() || 'pending',
+    userName: user.userName || '',
+    teacherId: user.teacherId || '',
+    teacherIdCard: user.teacherIdCard || ''
+  };
+
+  console.log('getUser service - Transformed user data:', userData);
+  return userData;
 }
 
 async function getAllUsers() {

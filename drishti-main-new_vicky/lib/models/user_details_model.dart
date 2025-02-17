@@ -33,6 +33,52 @@ class UserDetailsModel {
     required this.teacherIdCard,
   });
 
+  factory UserDetailsModel.fromJson(Map<String, dynamic> json) {
+    print('UserDetailsModel.fromJson input: $json');
+    
+    // Handle both _id and id fields
+    final userId = json['id']?.toString() ?? json['_id']?.toString() ?? '';
+    print('Extracted user ID: $userId');
+
+    final model = UserDetailsModel(
+      id: userId,
+      mobileNo: json['mobileNo']?.toString() ?? '',
+      countryCode: json['countryCode']?.toString() ?? '',
+      deviceTokens: List<String>.from(json['deviceTokens'] ?? []),
+      isOnboarded: json['isOnboarded'] ?? false,
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      role: json['role']?.toString()?.toLowerCase() ?? 'user',
+      email: json['email']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      userName: json['userName']?.toString() ?? '',
+      profileImage: json['profileImage']?.toString() ?? '',
+      teacherRoleApproved: json['teacherRoleApproved']?.toString()?.toLowerCase() ?? 'pending',
+      teacherId: json['teacherId']?.toString() ?? '',
+      teacherIdCard: json['teacherIdCard']?.toString() ?? '',
+    );
+
+    print('Created UserDetailsModel: ${model.toJson()}');
+    return model;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'mobileNo': mobileNo,
+    'countryCode': countryCode,
+    'deviceTokens': deviceTokens,
+    'isOnboarded': isOnboarded,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'role': role,
+    'email': email,
+    'name': name,
+    'userName': userName,
+    'profileImage': profileImage,
+    'teacherRoleApproved': teacherRoleApproved,
+    'teacherId': teacherId,
+    'teacherIdCard': teacherIdCard,
+  };
   static UserDetailsModel jsonToUserDetails(Map<String, dynamic>? json) {
     print('Raw JSON input: $json'); // Add this
 
@@ -117,25 +163,5 @@ class UserDetailsModel {
       teacherId: '',
       teacherIdCard: '',
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'countryCode': countryCode,
-      'createdAt': createdAt.toIso8601String(),
-      'deviceTokens': deviceTokens,
-      'isOnboarded': isOnboarded,
-      'mobileNo': mobileNo,
-      'role': role,
-      'updatedAt': updatedAt.toIso8601String(),
-      'email': email,
-      'name': name,
-      'profileImage': profileImage,
-      'teacherRoleApproved': teacherRoleApproved,
-      'userName': userName,
-      'teacherId': teacherId,
-      'teacherIdCard': teacherIdCard,
-    };
   }
 }

@@ -65,7 +65,23 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
   @override
   Future<ProfileDetailsResponse> getProfileDetails() async {
-    return await _profileService.getProfileDetails();
+    try {
+      final response = await _profileService.getProfileDetails();
+      if (response == null) {
+        return ProfileDetailsResponse(
+          success: false,
+          message: 'Failed to fetch profile details',
+          data: null,
+        );
+      }
+      return response;
+    } catch (e) {
+      return ProfileDetailsResponse(
+        success: false,
+        message: 'Error: ${e.toString()}',
+        data: null,
+      );
+    }
   }
 
   @override

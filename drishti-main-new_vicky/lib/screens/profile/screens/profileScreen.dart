@@ -31,6 +31,7 @@ class ProfileScreen extends StatefulWidget {
 class ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
   final _formKey = GlobalKey<FormState>();
+  bool _isRefreshing = false;
 
   late TextEditingController _usernameController;
   late TextEditingController _fullNameController;
@@ -47,8 +48,56 @@ class ProfileScreenState extends State<ProfileScreen> {
     _teacherIdController = TextEditingController();
     _isTeacher = false;
 
-    context.read<ProfileDetailsBloc>().add(GetProfileDetails());
+    _fetchProfileDetails();
     super.initState();
+  }
+
+  Future<void> _fetchProfileDetails() async {
+    if (_isRefreshing) return;
+
+    try {
+      context.read<ProfileDetailsBloc>().add(GetProfileDetails());
+    } catch (e) {
+      if (e is dio.DioException && e.response?.statusCode == 401) {
+        // Token expired, try to refresh
+        await _handleTokenRefresh();
+      }
+    }
+  }
+
+  Future<void> _handleTokenRefresh() async {
+    _isRefreshing = true;
+    try {
+      final refreshToken = await SharedPreferencesHelper.getRefreshToken();
+
+      if (refreshToken == null) {
+        // No refresh token available, redirect to login
+        _navigateToLogin();
+        return;
+      }
+
+      final newAccessToken =
+          await SharedPreferencesHelper.refreshAccessToken(refreshToken);
+
+      if (newAccessToken != null) {
+        // Token refresh successful, retry fetching profile
+        context.read<ProfileDetailsBloc>().add(GetProfileDetails());
+      } else {
+        _navigateToLogin();
+      }
+    } catch (e) {
+      print('Token refresh failed: $e');
+      _navigateToLogin();
+    } finally {
+      _isRefreshing = false;
+    }
+  }
+
+  void _navigateToLogin() {
+    // Clear tokens
+    SharedPreferencesHelper.clearTokens();
+    // Navigate to login screen
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   @override
@@ -80,11 +129,15 @@ class ProfileScreenState extends State<ProfileScreen> {
             );
             setState(() => _isEditing = false);
           } else if (state is FailedToUpdateProfileDetails) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                  content: Text(
-                      'Failed to update profile: ${state.profileResponse.message}')),
-            );
+            if (state.profileResponse.statusCode == 401) {
+              _handleTokenRefresh();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text(
+                        'Failed to update profile: ${state.profileResponse.message}')),
+              );
+            }
           }
         },
         builder: (context, state) {
@@ -94,9 +147,24 @@ class ProfileScreenState extends State<ProfileScreen> {
             _updateControllers(state.profileResponse.data!);
             return _buildProfileForm();
           } else if (state is FailedToFetchProfileDetails) {
+            if (state.profileResponse.statusCode == 401 && !_isRefreshing) {
+              _handleTokenRefresh();
+              return const Center(child: CircularProgressIndicator());
+            }
             return Center(
-                child: Text(
-                    'Failed to load profile: ${state.profileResponse.message}'));
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                      'Failed to load profile: ${state.profileResponse.message}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _fetchProfileDetails,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
           }
           return const Center(child: Text('Something went wrong'));
         },

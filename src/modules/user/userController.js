@@ -157,13 +157,60 @@ const updateLocationController = async (req, res) => {
 
 const onBoardUserController = async (req, res) => {
   try {
-    // Implement user onboarding logic
-    return createResponse(res, httpStatus.OK, "User onboarded successfully");
+    console.log('onBoardUserController - Request body:', req.body);
+    console.log('onBoardUserController - Files:', req.files);
+    console.log('onBoardUserController - User:', req.user);
+
+    if (!req.user || !req.user.id) {
+      return createResponse(
+        res,
+        httpStatus.UNAUTHORIZED,
+        'Authentication required'
+      );
+    }
+
+    const updatedUser = await userService.onBoardUser(req);
+    console.log('onBoardUserController - Updated user:', updatedUser);
+
+    if (!updatedUser) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        'Failed to update user'
+      );
+    }
+
+    // Transform user data for response
+    const userData = {
+      id: updatedUser._id.toString(),
+      mobileNo: updatedUser.mobileNo || '',
+      countryCode: updatedUser.countryCode || '+91',
+      deviceTokens: Array.isArray(updatedUser.deviceTokens) ? updatedUser.deviceTokens : [],
+      isOnboarded: Boolean(updatedUser.isOnboarded),
+      role: updatedUser.role?.toLowerCase() || 'user',
+      createdAt: updatedUser.createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt: updatedUser.updatedAt?.toISOString() || new Date().toISOString(),
+      email: updatedUser.email || '',
+      name: updatedUser.name || '',
+      profileImage: updatedUser.profileImage || '',
+      teacherRoleApproved: updatedUser.teacherRoleApproved?.toLowerCase() || 'pending',
+      userName: updatedUser.userName || '',
+      teacherId: updatedUser.teacherId || '',
+      teacherIdCard: updatedUser.teacherIdCard || ''
+    };
+
+    return createResponse(
+      res,
+      httpStatus.OK,
+      'User onboarded successfully',
+      userData
+    );
   } catch (error) {
+    console.error('onBoardUserController Error:', error);
     return createResponse(
       res,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Onboarding failed"
+      error.message || 'Onboarding failed'
     );
   }
 };
@@ -431,76 +478,41 @@ const searchUsers = async (req, res) => {
   }
 };
 
-async function getUser(request, response) {
+const getUser = async (request, response) => {
   try {
-    console.log('Getting user profile for:', request.user?.id);
-
-    if (!request.user || !request.user.id) {
-      console.log('No user in request:', request.user);
+    if (!request.user || !request.user._id) {
+      console.error('No user ID in request');
       return createResponse(
         response,
         httpStatus.UNAUTHORIZED,
-        "User not authenticated"
+        'Authentication required'
       );
     }
 
-    const user = await User.findById(request.user.id)
-      .select('-refreshTokens -password')
-      .lean();
-
-    console.log('Found user from DB:', user);
-
+    console.log('getUser controller - User ID:', request.user._id);
     
-    if (!user) {
-      console.log('User not found in DB for id:', request.user.id);
-      throw new appError(httpStatus.NOT_FOUND, "User not found");
-    }
-    console.log('Raw user document from DB:', user);
+    const userData = await userService.getUser(request.user._id);
+    console.log('getUser controller - User data:', userData);
 
-    // Transform user data to ensure no null values and proper types
-    const data = {
-      _id: user._id.toString(), // Keep _id for MongoDB compatibility
-      id: user._id.toString(),  // Add id for frontend compatibility
-      mobileNo: user.mobileNo || '',
-      countryCode: user.countryCode || '',
-      deviceTokens: Array.isArray(user.deviceTokens) ? user.deviceTokens : [],
-      isOnboarded: Boolean(user.isOnboarded),
-      createdAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: user.updatedAt ? user.updatedAt.toISOString() : new Date().toISOString(),
-      role: user.role || 'user',
-      email: user.email || '',
-      name: user.name || '',
-      profileImage: user.profileImage || '',
-      teacherRoleApproved: user.teacherRoleApproved || 'pending',
-      userName: user.userName || '',
-      teacherId: user.teacherId || '',
-      teacherIdCard: user.teacherIdCard || '',
-      bio: user.bio || '',
-      youtubeUrl: user.youtubeUrl || '',
-      xUrl: user.xUrl || '',
-      instagramUrl: user.instagramUrl || '',
-      nearByVisible: Boolean(user.nearByVisible),
-      locationSharing: Boolean(user.locationSharing),
-      geometry: user.geometry || { type: 'Point', coordinates: [0, 0] }
-    };
-
-    console.log('Sending transformed user data:', data);
-    console.log('Processed user data for response:', data);
     return createResponse(
       response,
       httpStatus.OK,
-      "User found",
-      data
+      'User found',
+      userData
     );
   } catch (error) {
-    console.error('Error in getUser:', error);
+    console.error('getUser controller - Error:', error);
     return createResponse(
       response,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Failed to retrieve user profile"
+      error.message || 'Failed to retrieve user profile'
     );
   }
-}
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Failed to retrieve user profile"
+    
+  
+};
 
 module.exports = {
   userLoginController,

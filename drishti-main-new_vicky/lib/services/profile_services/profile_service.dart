@@ -6,14 +6,10 @@ import 'package:srisridrishti/handler/responses/profile_details_response.dart';
 import 'package:srisridrishti/models/user_details_model.dart';
 import 'package:srisridrishti/screens/profile/screens/profile_details_screen.dart';
 import 'package:srisridrishti/utils/api_constants.dart';
-import 'package:srisridrishti/utils/logging.dart';
 import 'package:srisridrishti/utils/shared_preference_helper.dart';
 import 'package:path/path.dart' as path;
-import 'package:dio/dio.dart';
-import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
-import 'package:mime/mime.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:http_parser/http_parser.dart';
 
 class ProfileService {
   final Dio _dio;
@@ -21,9 +17,9 @@ class ProfileService {
   ProfileService({Dio? dio})
       : _dio = dio ??
             Dio(BaseOptions(
-              baseUrl: 'http://10.0.2.2:8080',
-              connectTimeout: const Duration(seconds: 30),
-              receiveTimeout: const Duration(seconds: 30),
+              baseUrl: ApiConstants.baseUrl,
+              connectTimeout: const Duration(milliseconds: 5000),
+              receiveTimeout: const Duration(milliseconds: 3000),
             ));
 
   String _getMimeType(String filePath) {
@@ -82,17 +78,31 @@ class ProfileService {
     File? teacherIdCardFile,
   }) async {
     try {
-      print('=== Adding Profile START ===');
+      // Validate input
+      if (username.isEmpty ||
+          fullName.isEmpty ||
+          email.isEmpty ||
+          phoneNumber.isEmpty) {
+        return OnboardResponse(
+          success: false,
+          message: 'All fields are required',
+          data: null,
+        );
+      }
 
-      String? token = await SharedPreferencesHelper.getAccessToken() ??
-          await SharedPreferencesHelper.getRefreshToken();
+      // Get authentication token
+      final token = await SharedPreferencesHelper.getAccessToken();
       if (token == null) {
-        throw Exception('No authentication token available');
+        return OnboardResponse(
+          success: false,
+          message: 'Authentication failed',
+          data: null,
+        );
       }
 
       final formData = FormData();
 
-      // Add text fields
+      // Add basic profile data
       formData.fields.addAll([
         MapEntry('userName', username),
         MapEntry('name', fullName),
@@ -100,96 +110,46 @@ class ProfileService {
         MapEntry('mobileNo', phoneNumber),
         MapEntry('role',
             isArtOfLivingTeacher == YesNoOption.yes ? 'teacher' : 'user'),
-        MapEntry('bio', 'test'),
       ]);
 
-      if (isArtOfLivingTeacher == YesNoOption.yes) {
-        if (teacherId.isEmpty) {
-          throw Exception('Teacher ID is required for teachers');
-        }
-        formData.fields.add(MapEntry('teacherId', teacherId));
-      }
-
-      // Handle profile image
+      // Process profile image
       if (profileImageFile != null) {
-        // Validate file size
-        final fileSize = await profileImageFile.length();
-        if (fileSize > 5 * 1024 * 1024) {
-          // 5MB
-          throw Exception('Profile image size must be less than 5MB');
-        }
-
-        // Compress image
-        final compressedFile = await _compressImage(profileImageFile);
-        final fileToUpload = compressedFile ?? profileImageFile;
-
-        final mimeType = _getMimeType(fileToUpload.path);
-        if (!['image/jpeg', 'image/png', 'image/jpg'].contains(mimeType)) {
-          throw Exception('Invalid file type. Only JPG and PNG are allowed.');
-        }
-
-        formData.files.add(MapEntry(
-          'profileImage',
-          await MultipartFile.fromFile(
-            fileToUpload.path,
-            filename: path.basename(fileToUpload.path),
-            contentType: _parseContentType(mimeType),
-          ),
-        ));
+        await _addImageToFormData(formData, profileImageFile, 'profileImage');
       }
 
-      // Handle teacher ID card
-      if (isArtOfLivingTeacher == YesNoOption.yes &&
-          teacherIdCardFile != null) {
-        // Similar validation and compression for teacher ID card
-        final fileSize = await teacherIdCardFile.length();
-        if (fileSize > 5 * 1024 * 1024) {
-          throw Exception('Teacher ID card size must be less than 5MB');
+      // Handle teacher specific data
+      if (isArtOfLivingTeacher == YesNoOption.yes) {
+        formData.fields.add(MapEntry('teacherId', teacherId));
+        if (teacherIdCardFile != null) {
+          await _addImageToFormData(
+              formData, teacherIdCardFile, 'teacherIdCard');
         }
-
-        final compressedFile = await _compressImage(teacherIdCardFile);
-        final fileToUpload = compressedFile ?? teacherIdCardFile;
-
-        final mimeType = _getMimeType(fileToUpload.path);
-        if (!['image/jpeg', 'image/png', 'image/jpg'].contains(mimeType)) {
-          throw Exception('Invalid file type. Only JPG and PNG are allowed.');
-        }
-
-        formData.files.add(MapEntry(
-          'teacherIdCard',
-          await MultipartFile.fromFile(
-            fileToUpload.path,
-            filename: path.basename(fileToUpload.path),
-            contentType: _parseContentType(mimeType),
-          ),
-        ));
       }
 
-      // Make API request with timeout
+      // Make API request
       final response = await _dio.post(
         '/user/onBoard',
         data: formData,
         options: Options(
           headers: {
-            'Authorization': token,
+            'Authorization': 'Bearer $token',
             'Content-Type': 'multipart/form-data',
           },
-          sendTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
         ),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && response.data != null) {
         return OnboardResponse(
           success: true,
-          message: response.data['message'],
+          message: response.data['message'] ?? 'Profile created successfully',
           data: UserDetailsModel.jsonToUserDetails(response.data['data']),
         );
-      } else {
-        throw Exception(response.data['message'] ?? 'Failed to update profile');
       }
+
+      throw Exception(response.data['message'] ?? 'Failed to create profile');
+    } on DioError catch (e) {
+      return _handleDioError(e);
     } catch (e) {
-      print('Error in addProfileDetails: $e');
       return OnboardResponse(
         success: false,
         message: e.toString(),
@@ -198,76 +158,142 @@ class ProfileService {
     }
   }
 
+  Future<void> _addImageToFormData(
+      FormData formData, File file, String fieldName) async {
+    final compressedFile = await _compressImage(file);
+    final fileToUpload = compressedFile ?? file;
+
+    final mimeType = _getMimeType(fileToUpload.path);
+    if (!['image/jpeg', 'image/png'].contains(mimeType)) {
+      throw Exception('Invalid file type. Only JPG and PNG are allowed.');
+    }
+
+    formData.files.add(MapEntry(
+      fieldName,
+      await MultipartFile.fromFile(
+        fileToUpload.path,
+        filename: path.basename(fileToUpload.path),
+        contentType: _parseContentType(mimeType),
+      ),
+    ));
+  }
+
+  OnboardResponse _handleDioError(DioError e) {
+    String message;
+    switch (e.type) {
+      case DioErrorType.connectionTimeout:
+      case DioErrorType.sendTimeout:
+      case DioErrorType.receiveTimeout:
+        message = 'Connection timeout. Please check your internet connection.';
+        break;
+      case DioErrorType.badResponse:
+        message = e.response?.data['message'] ?? 'Server error';
+        break;
+      default:
+        message = 'An unexpected error occurred';
+    }
+    return OnboardResponse(success: false, message: message, data: null);
+  }
+
   Future<ProfileDetailsResponse> getProfileDetails() async {
     try {
-      String? token = await SharedPreferencesHelper.getAccessToken() ??
-          await SharedPreferencesHelper.getRefreshToken();
+      print('Fetching profile details...');
 
+      String? token = await SharedPreferencesHelper.getActiveToken();
       if (token == null) {
-        print("No token available");
+        print('No valid authentication token found');
         return ProfileDetailsResponse(
           success: false,
-          message: "No authentication token available",
+          message: "Authentication failed",
           data: null,
         );
       }
 
-      // Ensure token has Bearer prefix
-      if (!token.startsWith('Bearer ')) {
-        token = 'Bearer $token';
-      }
-
-      print("Token being sent: $token");
-
+      print('Making API request with token: ${token.substring(0, 20)}...');
       final response = await _dio.get(
         ApiConstants.user,
         options: Options(
           headers: {
-            'Authorization': token,
+            'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
           },
         ),
       );
-      print('Raw API response: ${response.data}'); // Add this
 
-      print("Raw response: ${response.data}");
+      print('API Response Status: ${response.statusCode}');
+      print('API Response Data: ${response.data}');
 
-      if (response.statusCode == 200) {
-        final jsonBody = response.data;
-        print("Response data: $jsonBody");
+      if (response.statusCode == 200 && response.data != null) {
+        final Map<String, dynamic> jsonBody = response.data;
+        print('Full response body: $jsonBody');
 
-        if (jsonBody == null || jsonBody['data'] == null) {
-          print("No data in response: $jsonBody");
+        if (jsonBody['data'] != null) {
+          try {
+            // Transform the data to ensure id field is present
+            final Map<String, dynamic> userData = Map<String, dynamic>.from(jsonBody['data']);
+            
+            // Handle both _id and id fields
+            if (userData['_id'] != null && userData['id'] == null) {
+              userData['id'] = userData['_id'];
+            }
+
+            print('Transformed user data before parsing: $userData');
+            final userModel = UserDetailsModel.fromJson(userData);
+            print('Parsed user model: ${userModel.toJson()}');
+
+            return ProfileDetailsResponse(
+              success: true,
+              message: jsonBody['message'] ?? "Profile retrieved successfully",
+              data: userModel,
+            );
+          } catch (e, stackTrace) {
+            print('Error parsing user data: $e');
+            print('Stack trace: $stackTrace');
+            print('Raw user data: ${jsonBody['data']}');
+            return ProfileDetailsResponse(
+              success: false,
+              message: "Error parsing profile data: ${e.toString()}",
+              data: null,
+            );
+          }
+        } else {
+          print('Response data is empty or null: ${jsonBody}');
           return ProfileDetailsResponse(
             success: false,
-            message: "No user data received from server",
+            message: "No profile data found",
             data: null,
           );
         }
+      }
 
-        final userDetails =
-            UserDetailsModel.jsonToUserDetails(jsonBody['data']);
-        print("Parsed user details: ${userDetails.toJson()}");
-
-        return ProfileDetailsResponse(
-          success: true,
-          message: jsonBody['message'] ?? "Profile Details Fetched",
-          data: userDetails,
-        );
-      } else {
-        final errorMessage =
-            response.data['message'] ?? 'Failed to fetch profile';
-        print("Error response: $errorMessage");
-
+      // Add a default return for when response status code is not 200
+      return ProfileDetailsResponse(
+        success: false,
+        message: "Unexpected response: ${response.statusCode}",
+        data: null,
+      );
+    } on DioException catch (e) {
+      print('DioException in getProfileDetails: ${e.message}');
+      if (e.response?.statusCode == 401) {
+        // Try to refresh token
+        final newToken = await SharedPreferencesHelper.getActiveToken();
+        if (newToken != null) {
+          // Retry the request with new token
+          return getProfileDetails();
+        }
         return ProfileDetailsResponse(
           success: false,
-          message: errorMessage.toString(),
+          message: "Authentication failed",
           data: null,
         );
       }
-    } catch (e, stackTrace) {
-      print("Error in getProfileDetails: $e");
-      print("Stack trace: $stackTrace");
+      return ProfileDetailsResponse(
+        success: false,
+        message: e.message ?? "Network error occurred",
+        data: null,
+      );
+    } catch (e) {
+      print('Error in getProfileDetails: $e');
       return ProfileDetailsResponse(
         success: false,
         message: e.toString(),

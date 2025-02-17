@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'package:srisridrishti/services/auth_services/token_service.dart';
@@ -7,34 +9,47 @@ import 'package:srisridrishti/services/auth_service.dart';
 class AuthInterceptor extends Interceptor {
   final Dio dio;
   bool isRefreshing = false;
-  final _queue = <QueueItem>[];
+  List<Future Function(String?)> refreshQueue = [];
 
   AuthInterceptor(this.dio);
 
-  bool isTokenExpired(String? token) {
-    if (token == null || token.isEmpty) return true;
+  Future<void> _enqueueRequest(RequestOptions options, ErrorInterceptorHandler handler) {
+    final completer = Completer<void>();
+    
+    refreshQueue.add((String? token) async {
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+        try {
+          final response = await dio.fetch(options);
+          handler.resolve(response);
+        } catch (e) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              error: e.toString(),
+              type: DioExceptionType.unknown,
+            ),
+          );
+        }
+      }
+    });
+    
+    return completer.future;
+  }
 
+  bool isTokenExpired(String token) {
     try {
       final parts = token.split('.');
       if (parts.length != 3) return true;
 
-      // Decode payload
-      String payload = parts[1];
-      // Add padding if needed
-      while (payload.length % 4 != 0) {
-        payload += '=';
-      }
+      final normalizedBase64 = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalizedBase64)));
+      
+      if (!payload.containsKey('exp')) return true;
 
-      final normalized = base64Url.normalize(payload);
-      final decoded = utf8.decode(base64Url.decode(normalized));
-      final Map<String, dynamic> data = json.decode(decoded);
-
-      if (!data.containsKey('exp')) return true;
-
-      final exp = data['exp'];
+      final exp = payload['exp'];
       final expiryDate = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
-      // Add 5 seconds buffer to prevent edge cases
-      return DateTime.now().add(const Duration(seconds: 5)).isAfter(expiryDate);
+      return DateTime.now().add(const Duration(minutes: 1)).isAfter(expiryDate);
     } catch (e) {
       print('Error checking token expiration: $e');
       return true;
@@ -42,8 +57,11 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  void onRequest(
-      RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    if (options.path.contains('refresh') || options.path.contains('login')) {
+      return handler.next(options);
+    }
+
     try {
       String? token = await SharedPreferencesHelper.getAccessToken();
 
@@ -54,12 +72,12 @@ class AuthInterceptor extends Interceptor {
           if (newToken != null) {
             token = newToken;
           } else {
-            // Token refresh failed, clear tokens and throw error
-            await TokenService.clearTokens();
-            throw DioException(
-              requestOptions: options,
-              error: 'Token refresh failed',
-              type: DioExceptionType.unknown,
+            return handler.reject(
+              DioException(
+                requestOptions: options,
+                error: 'Token refresh failed',
+                type: DioExceptionType.unknown,
+              ),
             );
           }
         }
@@ -89,14 +107,23 @@ class AuthInterceptor extends Interceptor {
         return null;
       }
 
-      final response = await AuthService().refreshToken(refreshToken);
-      if (response?.statusCode == 200 && response?.data != null) {
-        final newAccessToken = response!.data['access_token'];
-        final newRefreshToken = response.data['refresh_token'];
+      final response = await dio.post(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
 
-        // Save new tokens
+      if (response.statusCode == 200 && response.data != null) {
+        final newAccessToken = response.data['accessToken'];
+        final newRefreshToken = response.data['refreshToken'];
+
         await SharedPreferencesHelper.setAccessToken(newAccessToken);
         await SharedPreferencesHelper.setRefreshToken(newRefreshToken);
+
+        // Process queued requests
+        for (var callback in refreshQueue) {
+          await callback(newAccessToken);
+        }
+        refreshQueue.clear();
 
         return newAccessToken;
       }
@@ -114,7 +141,12 @@ class AuthInterceptor extends Interceptor {
     if (err.response?.statusCode == 401) {
       final options = err.requestOptions;
 
-      // Add to queue if already refreshing
+      if (options.path.contains('refresh')) {
+        // Clear tokens on refresh failure
+        await TokenService.clearTokens();
+        return handler.next(err);
+      }
+
       if (isRefreshing) {
         return await _enqueueRequest(options, handler);
       }
@@ -122,35 +154,15 @@ class AuthInterceptor extends Interceptor {
       try {
         final newToken = await _refreshToken();
         if (newToken != null) {
-          // Update request authorization header
           options.headers['Authorization'] = 'Bearer $newToken';
-
-          // Retry the request
           final response = await dio.fetch(options);
           return handler.resolve(response);
         }
       } catch (e) {
         print('Error handling 401: $e');
+        await TokenService.clearTokens();
       }
     }
     return handler.next(err);
   }
-
-  Future<void> _enqueueRequest(
-    RequestOptions options,
-    ErrorInterceptorHandler handler,
-  ) async {
-    _queue.add(QueueItem(options, handler));
-  }
-
-  Future<Response<dynamic>> _retry(QueueItem item) async {
-    return await dio.fetch(item.options);
-  }
-}
-
-class QueueItem {
-  final RequestOptions options;
-  final ErrorInterceptorHandler handler;
-
-  QueueItem(this.options, this.handler);
 }

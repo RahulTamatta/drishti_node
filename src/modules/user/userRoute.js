@@ -37,7 +37,8 @@ const {
   locationSharing,
   getNearbyVisible,
   getSocialMediaController,
-  searchUsers // Import searchUsers from userController
+  searchUsers,
+  getUser // Import getUser from userController
 } = require("./userController");
 
 // Remove this line as we're already importing searchUsers from userController
@@ -49,20 +50,7 @@ const methodNotAllowed = require("../../middleware/methodNotAllowed");
 const validate = require("../../middleware/validate");
 const { uploadToS3 } = require("../../common/utils/uploadToS3");
 
-// Placeholder handler for getUser
-const getUser = async (req, res) => {
-  try {
-    // TO DO: Implement getUser logic
-    return createResponse(res, httpStatus.OK, "User found", {});
-  } catch (error) {
-    console.error("Get user error:", error);
-    return createResponse(
-      res, 
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Error getting user"
-    );
-  }
-};
+
 
 // User profile routes
 router.route("/")
