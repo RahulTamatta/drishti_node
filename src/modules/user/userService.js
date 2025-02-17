@@ -52,23 +52,23 @@ const userLoginService = async (request) => {
           countryCode
         };
 
-        // Encrypt the data
-        const encryptedData = await encode(JSON.stringify(details));
-        
-        return {
-          success: true,
-          message: "OTP sent successfully",
-          data: encryptedData
-        };
-      } else {
-        throw new appError(httpStatus.BAD_REQUEST, "Failed to send OTP");
+      if (user) {
+        details["userId"] = user._id.toString();
       }
-    } catch (apiError) {
-      console.error('2Factor API Error:', apiError);
-      throw new appError(
-        httpStatus.SERVICE_UNAVAILABLE,
-        "Failed to send OTP. Please try again later."
-      );
+
+      return { data: await encode(JSON.stringify(details)) };
+
+
+    } else {
+      console.error("2Factor API Error:", response.data);
+
+      // More specific error handling based on 2factor API response
+      let errorMessage = "Failed to send OTP";
+      if (response.data && response.data.Details) { // Check if Details exists
+        errorMessage = response.data.Details; // Try to extract more details from the API response
+      }
+      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+
     }
   } catch (error) {
     console.error('userLoginService Error:', error);

@@ -30,31 +30,33 @@ const encode = (data) => {
   }
 };
 
-const decode = (encryptedData) => {
+const decode = async (encryptedData) => {
   try {
-    if (!encryptedData) {
-      throw new Error('Encrypted data is required');
+    console.log('Attempting to decrypt:', encryptedData);
+    
+    // Split the encrypted data to get salt and data
+    const encryptedParts = encryptedData.split('|');
+    const encryptedText = encryptedParts[0] || encryptedData; // Fallback to full string if no separator
+
+    // Decrypt using CryptoJS
+    const bytes = CryptoJS.AES.decrypt(encryptedText, process.env.ENCRYPTION_KEY);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    
+    if (!decrypted) {
+      console.error('Decryption resulted in empty string');
+      throw new Error('Decryption failed');
     }
-
-    // Convert key and IV to proper format
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
-    const iv = CryptoJS.enc.Utf8.parse(IV);
-
-    // Decrypt the data
-    const decrypted = CryptoJS.AES.decrypt(encryptedData, key, {
-      iv: iv,
-      mode: CryptoJS.mode.CBC,
-      padding: CryptoJS.pad.Pkcs7
+    
+    console.log('Decryption successful:', {
+      input: encryptedData,
+      decrypted: decrypted
     });
-
-    return decrypted.toString(CryptoJS.enc.Utf8);
+    
+    return decrypted;
   } catch (error) {
     console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt data: ' + error.message);
+    throw new Error('Failed to decrypt data');
   }
 };
 
-module.exports = {
-  encode,
-  decode
-};
+module.exports = { encode, decode };
