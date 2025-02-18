@@ -2,7 +2,7 @@ class CreateEventModel {
   String? mode;
   List<String>? aol;
   List<String>? title;
-  EventDateTime? date; // Renamed to avoid conflict
+  EventDateTime? date;
   bool? recurring;
   String? durationFrom;
   String? durationTo;
@@ -12,52 +12,33 @@ class CreateEventModel {
   List<String>? phoneNumber;
   List<String>? address;
   String? description;
-  String? mapUrl;
   String? registrationLink;
   List<double>? coordinates;
   List<String>? teachers;
 
-  CreateEventModel(
-      {this.mode,
-      this.aol,
-      this.title,
-      this.date,
-      this.timeTitle,
-      this.recurring,
-      this.durationFrom,
-      this.durationTo,
-      this.timeOffset,
-      this.meetingLink,
-      this.phoneNumber,
-      this.address,
-      this.description,
-      this.registrationLink,
-      this.coordinates,
-      this.teachers,
-      this.mapUrl});
-
-  // @override
-  // String toString() {
-  //   return 'CreateEventModel{'
-  //       'aol: $aol, '
-  //       'meetingLink: $meetingLink, '
-  //       'description: $description, '
-  //       'phoneNumber: $phoneNumber, '
-  //       'registrationLink: $registrationLink, '
-  //       'teachers: $teachers, '
-  //       'coordinates: $coordinates, '
-  //       'title: $title, '
-  //       'timeTitle : $timeTitle, '
-  //       'durationFrom: $durationFrom,'
-  //       'durationTo: $durationTo,'
-  //       'mode: $mode, '
-  //       'address: $address}';
-  // }
+  CreateEventModel({
+    this.mode,
+    this.aol,
+    this.title,
+    this.date,
+    this.timeTitle,
+    this.recurring,
+    this.durationFrom,
+    this.durationTo,
+    this.timeOffset,
+    this.meetingLink,
+    this.phoneNumber,
+    this.address,
+    this.description,
+    this.registrationLink,
+    this.coordinates,
+    this.teachers,
+  });
 
   CreateEventModel.fromJson(Map<String, dynamic> json) {
     mode = json['mode'];
-    aol = List<String>.from(json['aol']);
-    title = List<String>.from(json['title']);
+    aol = json['aol'] != null ? List<String>.from(json['aol']) : null;
+    title = json['title'] != null ? List<String>.from(json['title']) : null;
     timeTitle = json['timeTitle'];
     date = json['date'] != null ? EventDateTime.fromJson(json['date']) : null;
     recurring = json['recurring'];
@@ -65,48 +46,45 @@ class CreateEventModel {
     durationTo = json['durationTo'];
     timeOffset = json['timeOffset'];
     meetingLink = json['meetingLink'];
-    phoneNumber = json['phoneNumber'];
-    address = List<String>.from(json['address']);
+    phoneNumber = json['phoneNumber'] != null ? [json['phoneNumber']] : null;
+    address = json['address'] != null ? List<String>.from(json['address']) : null;
     description = json['description'];
-    mapUrl = json['mapUrl'];
     registrationLink = json['registrationLink'];
-    coordinates = List<double>.from(json['coordinates']);
-    teachers = List<String>.from(json['teachers']);
+    coordinates = json['coordinates'] != null ? List<double>.from(json['coordinates']) : null;
+    teachers = json['teachers'] != null ? List<String>.from(json['teachers']) : null;
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = <String, dynamic>{};
-    data['mode'] = mode;
-    data['aol'] = aol;
-    data['title'] = title;
-    data['timeTitle'] = timeTitle;
-    if (date != null) {
-      data['date'] = date!.toJson();
+    final Map<String, dynamic> data = {};
+    
+    if (mode != null) data['mode'] = mode;
+    if (aol != null && aol!.isNotEmpty) data['aol'] = aol;
+    if (title != null && title!.isNotEmpty) data['title'] = title;
+    if (timeTitle != null) data['timeTitle'] = timeTitle;
+    if (date != null) data['date'] = date!.toJson();
+    if (recurring != null) data['recurring'] = recurring;
+    if (durationFrom != null) data['durationFrom'] = durationFrom;
+    if (durationTo != null) data['durationTo'] = durationTo;
+    if (timeOffset != null) data['timeOffset'] = timeOffset;
+    if (meetingLink != null) data['meetingLink'] = meetingLink;
+    if (phoneNumber != null && phoneNumber!.isNotEmpty) {
+      data['phoneNumber'] = phoneNumber![0];
     }
-    data['recurring'] = recurring;
-
-    data['durationFrom'] = durationFrom!;
-    data['durationTo'] = durationTo!;
-
-    data['timeOffset'] = timeOffset;
-    data['meetingLink'] = meetingLink;
-    data['phoneNumber'] = phoneNumber;
-    data['address'] = address;
-    data['description'] = description;
-    data['mapUrl'] = mapUrl;
-    data['registrationLink'] = registrationLink;
-    data['coordinates'] = coordinates;
-    data['teachers'] = teachers;
+    if (address != null && address!.isNotEmpty) data['address'] = address;
+    if (description != null) data['description'] = description;
+    if (registrationLink != null) data['registrationLink'] = registrationLink;
+    if (coordinates != null && coordinates!.isNotEmpty) data['coordinates'] = coordinates;
+    if (teachers != null && teachers!.isNotEmpty) data['teachers'] = teachers;
+    
     return data;
   }
 
-  // The copyWith method
   CreateEventModel copyWith({
     String? mode,
     List<String>? aol,
     List<String>? title,
     String? timeTitle,
-    EventDateTime? date, // Updated here
+    EventDateTime? date,
     bool? recurring,
     String? durationFrom,
     String? durationTo,
@@ -115,7 +93,6 @@ class CreateEventModel {
     List<String>? phoneNumber,
     List<String>? address,
     String? description,
-    String? mapUrl,
     String? registrationLink,
     List<double>? coordinates,
     List<String>? teachers,
@@ -134,7 +111,6 @@ class CreateEventModel {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       address: address ?? this.address,
       description: description ?? this.description,
-      mapUrl: mapUrl ?? this.mapUrl,
       registrationLink: registrationLink ?? this.registrationLink,
       coordinates: coordinates ?? this.coordinates,
       teachers: teachers ?? this.teachers,
@@ -143,7 +119,6 @@ class CreateEventModel {
 }
 
 class EventDateTime {
-  // Renamed to avoid conflict
   String? from;
   String? to;
 
@@ -155,9 +130,9 @@ class EventDateTime {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = <String, dynamic>{};
-    data['from'] = from;
-    data['to'] = to;
+    final Map<String, dynamic> data = {};
+    if (from != null) data['from'] = from;
+    if (to != null) data['to'] = to;
     return data;
   }
 }

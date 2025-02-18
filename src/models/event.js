@@ -25,7 +25,8 @@ const eventSchema = new mongoose.Schema(
     recurring: Boolean,
     description: String,
     address: [],
-    phoneNumber: String,
+ // In the Event model schema
+phoneNumber: [{ type: String }], // Changed from String to array of strings
     registrationLink: String,
     location: {
       type: { type: String, enum: ["Point"], default: "Point" },

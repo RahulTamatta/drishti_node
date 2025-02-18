@@ -38,6 +38,7 @@ class AddressData {
   String country;
   String pin;
   String userId;
+  LatLong? latlong;  // Add this field
   DateTime createdAt;
   DateTime updatedAt;
   int v;
@@ -51,22 +52,24 @@ class AddressData {
     required this.country,
     required this.pin,
     required this.userId,
+    this.latlong,  // Add this parameter
     required this.createdAt,
     required this.updatedAt,
     required this.v,
   });
 
   factory AddressData.fromJson(Map<String, dynamic> json) => AddressData(
-        id: json["_id"].toString(),
-        title: json["title"].toString(),
-        address: json["address"].toString(),
-        city: json["city"].toString(),
-        state: json["state"].toString(),
-        country: json["country"].toString(),
-        pin: json["pin"].toString(),
-        userId: json["userId"].toString(),
-        createdAt: DateTime.parse(json["createdAt"].toString()),
-        updatedAt: DateTime.parse(json["updatedAt"].toString()),
+        id: json["_id"],
+        title: json["title"],
+        address: json["address"],
+        city: json["city"],
+        state: json["state"],
+        country: json["country"],
+        pin: json["pin"],
+        userId: json["userId"],
+        latlong: json["latlong"] != null ? LatLong.fromJson(json["latlong"]) : null,  // Add this line
+        createdAt: DateTime.parse(json["createdAt"]),
+        updatedAt: DateTime.parse(json["updatedAt"]),
         v: json["__v"],
       );
 
@@ -79,8 +82,29 @@ class AddressData {
         "country": country,
         "pin": pin,
         "userId": userId,
+        "latlong": latlong?.toJson(),
         "createdAt": createdAt.toIso8601String(),
         "updatedAt": updatedAt.toIso8601String(),
         "__v": v,
+      };
+}
+
+class LatLong {
+  String type;
+  List<double> coordinates;
+
+  LatLong({
+    required this.type,
+    required this.coordinates,
+  });
+
+  factory LatLong.fromJson(Map<String, dynamic> json) => LatLong(
+        type: json["type"],
+        coordinates: List<double>.from(json["coordinates"].map((x) => x.toDouble())),
+      );
+
+  Map<String, dynamic> toJson() => {
+        "type": type,
+        "coordinates": List<dynamic>.from(coordinates.map((x) => x)),
       };
 }

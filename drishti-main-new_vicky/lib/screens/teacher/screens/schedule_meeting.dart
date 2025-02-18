@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geocoding_platform_interface/src/models/placemark.dart';
-import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../widgets/add_icon_button.dart';
@@ -41,18 +40,29 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   final TextEditingController _mapController = TextEditingController();
   final TextEditingController _locationUrlController = TextEditingController();
   final TextEditingController _teacherNameController = TextEditingController();
-  final TextEditingController _registrationLinkController =
-      TextEditingController();
+  final TextEditingController _registrationLinkController = TextEditingController();
 
-  final List<TextEditingController> _phoneNumberControllers = [
-    TextEditingController()
-  ];
+  final List<TextEditingController> _phoneNumberControllers = [TextEditingController()];
   List<String> addedTeachers = [];
   List<String> addedTeachersName = [];
 
   final List<Widget> _phoneNumberFields = [];
 
   int count = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _addPhoneNumberField();
+    
+    // Initialize providers with nullable fields
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final createEventProvider = Provider.of<CreateEventProvider>(context, listen: false);
+      
+      // Initialize event model with null values for optional fields
+      createEventProvider.createEventModel;
+    });
+  }
 
   void _addPhoneNumberField() {
     setState(() {
@@ -62,13 +72,6 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         _phoneNumberControllers[_phoneNumberControllers.length - 1],
       ));
     });
-  }
-
-  @override
-  void initState() {
-    _addPhoneNumberField();
-
-    super.initState();
   }
 
   @override
@@ -83,53 +86,60 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     }
   }
 
-  bool _validateFields() {
-    if (_meetingIDController.text.isEmpty ||
-        _descriptionController.text.isEmpty ||
-        _locationUrlController.text.isEmpty ||
-        _mapController.text.isEmpty) {
-      return false;
+
+void _submitForm(CreateEventProvider createEventProvider, BuildContext mcontext) async {
+    final addressProvider = Provider.of<AddressProvider>(context, listen: false);
+    final lat = addressProvider.latitude;
+    final lng = addressProvider.longitude;
+
+    if (!_validateFields()) {
+      showToast(
+        text: "Please fill all required fields",
+        color: Colors.red,
+        context: mcontext,
+      );
+      return;
     }
-    return true;
-  }
 
-  void _submitForm(
-      CreateEventProvider createEventProvider, BuildContext mcontext) async {
-    final AddressProvider addressProvider =
-        Provider.of<AddressProvider>(context, listen: true);
+    // Validate mode selection
+    if (_selectedOption.isEmpty) {
+      showToast(
+        text: "Please select either Online or Offline mode",
+        color: Colors.red,
+        context: mcontext,
+      );
+      return;
+    }
 
-    if (_validateFields()) {
-      List<String> phoneNumbers =
-          _phoneNumberControllers.map((controller) => controller.text).toList();
+    // Filter out empty phone numbers
+    String? phoneNumber = _phoneNumberControllers
+        .map((controller) => controller.text.trim())
+        .where((number) => number.isNotEmpty)
+        .firstOrNull;
 
-      // Handle mode selection from Set<OfflineOnlineOption>
-      if (_selectedOption.isNotEmpty) {
-        // Convert Set to List of names
-        List<String> modeNames =
-            _selectedOption.map((option) => option.name).toList();
-        createEventProvider.createEventModel.mode = modeNames as String?;
-      } else {
-        createEventProvider.createEventModel.mode = [] as String?;
-      }
+    if (phoneNumber == null) {
+      showToast(
+        text: "Please enter at least one phone number",
+        color: Colors.red,
+        context: mcontext,
+      );
+      return;
+    }
 
-      createEventProvider.createEventModel.meetingLink =
-          _meetingIDController.text;
-      createEventProvider.createEventModel.description =
-          _descriptionController.text;
-      createEventProvider.createEventModel.registrationLink =
-          _registrationLinkController.text;
+    try {
+      // Update event model with validated data
+      createEventProvider.createEventModel.mode = _selectedOption.map((option) => option.name).join(',');
+      createEventProvider.createEventModel.meetingLink = _selectedOption.contains(OfflineOnlineOption.online) ? _meetingIDController.text : null;
+      createEventProvider.createEventModel.description = _descriptionController.text;
+      createEventProvider.createEventModel.registrationLink = _registrationLinkController.text;
       createEventProvider.createEventModel.teachers = addedTeachers;
-      createEventProvider.createEventModel.coordinates = [
-        addressProvider.latitude,
-        addressProvider.longitude
-      ];
-      createEventProvider.createEventModel.mapUrl = _mapController.text;
-      createEventProvider.createEventModel.phoneNumber = phoneNumbers;
-      createEventProvider.createEventModel.address = [
-        _locationUrlController.text
-      ];
-      createEventProvider.createEventModel.aol = ["course"];
-      createEventProvider.createEventModel.timeOffset = "UTC+05:30";
+      createEventProvider.createEventModel.phoneNumber = [phoneNumber];
+      createEventProvider.createEventModel.address = [_locationUrlController.text];
+
+      // Only include coordinates if location is provided
+      if (lat != null && lng != null) {
+        createEventProvider.createEventModel.coordinates = [lng, lat]; // Note: API expects [longitude, latitude]
+      }
 
       if (mounted) {
         context.read<CreateEventBloc>().add(CreateEvent(
@@ -139,17 +149,81 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
         Navigator.push(
           context,
-          MaterialPageRoute(
-              builder: (context) => const BottomNavigationScreen()),
+          MaterialPageRoute(builder: (context) => const BottomNavigationScreen()),
         );
       }
-    } else {
+    } catch (e) {
       showToast(
-        text: "Please fill the details!",
+        text: "Error creating event: ${e.toString()}",
         color: Colors.red,
         context: mcontext,
       );
     }
+  }
+
+  bool _validateFields() {
+    // Basic validation for required fields
+    if (_descriptionController.text.isEmpty) {
+      showToast(
+        text: "Please add a description",
+        color: Colors.red,
+        context: context,
+      );
+      return false;
+    }
+
+    // Validate phone numbers
+    bool hasValidPhoneNumber = false;
+    for (var controller in _phoneNumberControllers) {
+      String phone = controller.text.trim();
+      if (phone.isNotEmpty) {
+        String digitsOnly = phone.replaceAll(RegExp(r'\D'), '');
+        if (digitsOnly.length < 10) {
+          showToast(
+            text: "Phone numbers must have at least 10 digits",
+            color: Colors.red,
+            context: context,
+          );
+          return false;
+        }
+        hasValidPhoneNumber = true;
+      }
+    }
+
+    if (!hasValidPhoneNumber) {
+      showToast(
+        text: "Please enter at least one valid phone number",
+        color: Colors.red,
+        context: context,
+      );
+      return false;
+    }
+
+    // Validate location for offline events
+    if (_selectedOption.contains(OfflineOnlineOption.offline)) {
+      if (_locationUrlController.text.isEmpty) {
+        showToast(
+          text: "Please select a location for offline event",
+          color: Colors.red,
+          context: context,
+        );
+        return false;
+      }
+    }
+
+    // Validate meeting link for online events
+    if (_selectedOption.contains(OfflineOnlineOption.online)) {
+      if (_meetingIDController.text.isEmpty) {
+        showToast(
+          text: "Please provide a meeting link for online event",
+          color: Colors.red,
+          context: context,
+        );
+        return false;
+      }
+    }
+
+    return true;
   }
 
   bool isEnd = false;
@@ -157,18 +231,26 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final AddressProvider addressProvider =
-        Provider.of<AddressProvider>(context, listen: true);
-    final List<Placemark>? addresses = addressProvider.address;
-    if (addresses != null) {
-      String address =
-          '${addresses.first.name!} ${addresses.first.subLocality!} ${addresses.first.administrativeArea!} ${addresses.first.postalCode!}';
-      _locationUrlController.text = address;
+    // Get providers with null safety
+    final addressProvider = Provider.of<AddressProvider>(context, listen: true);
+    final createEventProvider = Provider.of<CreateEventProvider>(context, listen: true);
+    final teacherProvider = Provider.of<TeacherProvider>(context, listen: true);
+
+    // Safely handle addresses
+    final addresses = addressProvider.address;
+    if (addresses != null && addresses.isNotEmpty) {
+      final firstAddress = addresses.first;
+      final addressComponents = [
+        firstAddress.name,
+        firstAddress.subLocality,
+        firstAddress.administrativeArea,
+        firstAddress.postalCode,
+      ].where((component) => component != null && component.isNotEmpty).join(' ');
+      
+      if (addressComponents.isNotEmpty) {
+        _locationUrlController.text = addressComponents;
+      }
     }
-    final CreateEventProvider createEventProvider =
-        Provider.of<CreateEventProvider>(context, listen: true);
-    final TeacherProvider teacherProvider =
-        Provider.of<TeacherProvider>(context, listen: true);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -227,11 +309,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
             SizedBox(height: 20.sp),
             CourseFollowupEventWidget(),
             SizedBox(height: 20.sp),
-
             SelectCourseWidget(),
             SizedBox(height: 13.sp),
             const MyDateRangePicker(),
-
             SizedBox(height: 13.sp),
             Row(
                 // crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,11 +354,18 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
               ),
             ),
             SizedBox(height: 13.sp),
-            // _textFieldWidget(_locationUrlController, "Enter Location"),
-            _textFieldWidgetLoc(_locationUrlController, "Enter Location"),
-            SizedBox(height: 13.sp),
-            _textFieldWidget(_mapController, "Add Map URL",
-                labelColor: AppColors.primaryColor, suffixIcon: Icons.link),
+            _textFieldWidgetLoc(
+              _locationUrlController,
+              "Location",
+              prefixIcon: Icons.location_on,
+              suffixIcon: Icons.edit_location,
+            ),
+            if (_locationUrlController.text.isNotEmpty)
+              _textFieldWidget(
+                _mapController,
+                "Map URL (optional)",
+                prefixIcon: Icons.map,
+              ),
             SizedBox(height: 20.sp),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -327,7 +414,6 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
               ],
             ),
             SizedBox(height: 13.sp),
-
             SizedBox(
               height: (70 * _phoneNumberFields.length).toDouble(),
               child: ListView.builder(
@@ -526,68 +612,74 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     );
   }
 
-  Widget _textFieldWidgetLoc(TextEditingController controller, String hintText,
-      {IconData? prefixIcon,
-      String? Function(String?)? validator,
-      Color? labelColor,
-      IconData? suffixIcon}) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      onTap: () async {
-        // Navigate to Select Location page
+  Widget _textFieldWidgetLoc(TextEditingController controller, String hintText, {
+    IconData? prefixIcon,
+    String? Function(String?)? validator,
+    Color? labelColor,
+    IconData? suffixIcon
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      child: TextFormField(
+        controller: controller,
+        readOnly: true,
+        decoration: InputDecoration(
+          hintText: hintText,
+          prefixIcon: prefixIcon != null
+              ? Icon(
+                  prefixIcon,
+                  color: labelColor ?? Colors.grey,
+                )
+              : null,
+          suffixIcon: IconButton(
+            icon: Icon(suffixIcon ?? Icons.location_on),
+            onPressed: () async {
+              try {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SelectLocationScreen()),
+                );
 
-        Get.to(SelectLocationScreen());
-      },
-      style: GoogleFonts.manrope(
-        textStyle: TextStyle(
-          color: labelColor != null ? AppColors.primaryColor : Colors.black,
-          fontSize: 15.sp,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.all(14),
-        hintText: hintText,
-        labelText: hintText,
-        labelStyle: GoogleFonts.manrope(
-          textStyle: TextStyle(
-            color: Colors.black,
-            fontSize: 14.sp,
-            fontWeight: FontWeight.w500,
+                if (result != null && result is Map<String, dynamic>) {
+                  setState(() {
+                    _locationUrlController.text = result['formattedAddress'] ?? '';
+                    
+                    // Store the coordinates in the provider for later use
+                    final AddressProvider addressProvider = Provider.of<AddressProvider>(context, listen: false);
+                    addressProvider.updatePosition(
+                      lat: result['coordinates']?['lat'] ?? 0.0,
+                      long: result['coordinates']?['lng'] ?? 0.0,
+                      address: result['fullAddress'] != null ? [Placemark(
+                        name: result['street'] ?? '',
+                        locality: result['city'] ?? '',
+                        administrativeArea: result['state'] ?? '',
+                        postalCode: result['postalCode'] ?? '',
+                        country: result['country'] ?? ''
+                      )] : []
+                    );
+
+                    // Update map URL after location is selected
+                    final lat = result['coordinates']?['lat'];
+                    final lng = result['coordinates']?['lng'];
+                    if (lat != null && lng != null) {
+                      _mapController.text = 'https://www.google.com/maps?q=$lat,$lng';
+                    }
+                  });
+                }
+              } catch (e) {
+                showToast(
+                  text: "Error selecting location: ${e.toString()}",
+                  color: Colors.red,
+                  context: context
+                );
+              }
+            },
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
-        fillColor: Colors.white,
-        filled: true,
-        hintStyle: GoogleFonts.manrope(
-          textStyle: TextStyle(
-            color: Colors.black,
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        prefixIcon: prefixIcon != null
-            ? Icon(
-                prefixIcon,
-                size: 17.sp,
-                color: Colors.grey.withOpacity(0.4),
-              )
-            : null,
-        suffixIcon: suffixIcon != null
-            ? Icon(
-                suffixIcon,
-                size: 18.sp,
-                color: Colors.grey.withOpacity(0.7),
-              )
-            : null,
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.black12),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: Colors.black12),
-          borderRadius: BorderRadius.circular(6),
-        ),
+        validator: validator,
       ),
     );
   }
@@ -611,7 +703,14 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                 CountryCodePicker(
                   onChanged: (countryCode) {
                     setState(() {
-                      selectedCountryCode = countryCode.dialCode!;
+                      // Store country code without + symbol for consistency
+                      selectedCountryCode = countryCode.dialCode?.replaceAll('+', '') ?? '';
+                      
+                      // Update the phone number with new country code if there's already a number
+                      if (phoneController.text.isNotEmpty) {
+                        String number = phoneController.text.replaceAll(RegExp(r'^\+?\d+\s*'), '');
+                        phoneController.text = selectedCountryCode + number;
+                      }
                     });
                   },
                   initialSelection: 'IN',
@@ -638,10 +737,22 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                   child: TextField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
+                    onChanged: (value) {
+                      // Remove any non-digit characters from input
+                      String digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+                      if (selectedCountryCode.isNotEmpty && !digitsOnly.startsWith(selectedCountryCode)) {
+                        digitsOnly = selectedCountryCode + digitsOnly;
+                      }
+                      if (value != digitsOnly) {
+                        phoneController.text = digitsOnly;
+                        phoneController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: digitsOnly.length),
+                        );
+                      }
+                    },
                     decoration: InputDecoration(
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 8.0),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
                       hintText: 'Enter phone number',
                       hintStyle: GoogleFonts.poppins(
                         textStyle: TextStyle(

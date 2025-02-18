@@ -869,6 +869,44 @@ const createAddressService = async (request) => {
   }
 };
 
+const createEventService = async (request) => {
+  try {
+    const { mode, aol, title, date, recurring, durationFrom, durationTo, timeOffset, meetingLink, phoneNumber, address, description, registrationLink, coordinates, teachers } = request.body;
+
+    // Validate required fields
+    if (!mode || !aol || !title || !date || !durationFrom || !durationTo || !phoneNumber || !address) {
+      throw new appError(httpStatus.BAD_REQUEST, 'Required fields are missing');
+    }
+
+    // Create new event
+    const newEvent = new Event({
+      mode,
+      aol,
+      title,
+      date,
+      recurring,
+      duration: [{ from: durationFrom, to: durationTo }],
+      timeOffset,
+      meetingLink,
+      phoneNumber,
+      address,
+      description,
+      registrationLink,
+      location: {
+        type: 'Point',
+        coordinates
+      },
+      teachers
+    });
+
+    const savedEvent = await newEvent.save();
+    return savedEvent;
+  } catch (error) {
+    console.error('Error creating event:', error);
+    throw new appError(httpStatus.INTERNAL_SERVER_ERROR, error.message || 'Failed to create event');
+  }
+};
+
 module.exports = {
   userLoginService,
   updateLocation,
@@ -888,5 +926,6 @@ module.exports = {
   getSocialMedia,
   getNearbyVisibleUsers,
   searchUsers,
-  createAddressService
+  createAddressService,
+  createEventService,
 };

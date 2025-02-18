@@ -86,48 +86,163 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
             children: [
               // Replacing the TextField with LocationAutoComplete widget
 
-              TextField(
-                controller: searchController,
-                decoration: const InputDecoration(
-                  hintText: "Search place...",
-                ),
-                onChanged: (value) {
-                  setState(() {});
-                },
-              ),
-              Visibility(
-                visible: searchController.text.isNotEmpty,
-                child: Expanded(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    // physics: const NeverScrollableScrollPhysics(),
-                    itemCount: listOfLocation.length,
-                    itemBuilder: (context, index) {
-                      return GestureDetector(
-                        onTap: () async {
-                          print(
-                              "Location selected: ${listOfLocation[index]["description"]}");
-                          // You can handle selection here
-                        },
-                        child: ListTile(
-                          title: Text(listOfLocation[index]["description"]),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
+              // TextField(
+              //   controller: searchController,
+              //   decoration: const InputDecoration(
+              //     hintText: "Search place...",
+              //   ),
+              //   onChanged: (value) {
+              //     setState(() {});
+              //   },
+              // ),
+              // Visibility(
+              //   visible: searchController.text.isNotEmpty,
+              //   child: Expanded(
+              //     child: ListView.builder(
+              //       shrinkWrap: true,
+              //       // physics: const NeverScrollableScrollPhysics(),
+              //       itemCount: listOfLocation.length,
+              //       itemBuilder: (context, index) {
+              //         return GestureDetector(
+              //           onTap: () async {
+              //             print(
+              //                 "Location selected: ${listOfLocation[index]["description"]}");
 
-              Center(
-                  child: Text(
-                "OR",
-                style: TextStyle(fontSize: 16, color: AppColors.primaryColor),
-              )),
+              //             final placeId = listOfLocation[index]["place_id"];
+              //             final details = await getPlaceDetails(placeId);
+
+              //             if (details != null) {
+              //               // Extract address components
+              //               String street = '';
+              //               String city = '';
+              //               String state = '';
+              //               String country = '';
+              //               String postalCode = '';
+              //               String formattedAddress =
+              //                   details['formatted_address'] ?? '';
+
+              //               // Parse address components
+              //               for (var component
+              //                   in details['address_components']) {
+              //                 final List types = component['types'];
+              //                 if (types.contains('sublocality_level_1') ||
+              //                     types.contains('locality')) {
+              //                   city = component['long_name'];
+              //                 } else if (types
+              //                     .contains('administrative_area_level_1')) {
+              //                   state = component['long_name'];
+              //                 } else if (types.contains('country')) {
+              //                   country = component['long_name'];
+              //                 } else if (types.contains('postal_code')) {
+              //                   postalCode = component['long_name'];
+              //                 } else if (types.contains('route')) {
+              //                   street = component['long_name'];
+              //                 }
+              //               }
+
+              //               // If no postal code found, show error and return
+              //               if (postalCode.isEmpty) {
+              //                 showToast(
+              //                   text:
+              //                       "Please select a location with a valid PIN code",
+              //                   color: Colors.red,
+              //                   context: context,
+              //                 );
+              //                 return;
+              //               }
+
+              //               // Get user ID from SharedPreferences
+              //               final SharedPreferences prefs =
+              //                   await SharedPreferences.getInstance();
+              //               var userID = prefs.getString("UserID");
+
+              //               if (userID == null) {
+              //                 showToast(
+              //                   text:
+              //                       "User ID not found. Please login again.",
+              //                   color: Colors.red,
+              //                   context: context,
+              //                 );
+              //                 return;
+              //               }
+
+              //               // Create properly structured address data for API
+              //               final addressData = {
+              //                 "title": "Home",
+              //                 "address": formattedAddress,
+              //                 "street": street,
+              //                 "city": city,
+              //                 "state": state,
+              //                 "country": country,
+              //                 "pin": postalCode,
+              //                 "latlong": {
+              //                   "type": "Point",
+              //                   "coordinates": [
+              //                     details['geometry']['location']['lng'],
+              //                     details['geometry']['location']['lat']
+              //                   ]
+              //                 },
+              //                 "userId": userID
+              //               };
+
+              //               // Validate required fields
+              //               if (city.isEmpty ||
+              //                   state.isEmpty ||
+              //                   country.isEmpty ||
+              //                   formattedAddress.isEmpty) {
+              //                 showToast(
+              //                   text:
+              //                       "Unable to get complete address details. Please try another location.",
+              //                   color: Colors.red,
+              //                   context: context,
+              //                 );
+              //                 return;
+              //               }
+
+              //               // Update provider
+              //               final addressProvider =
+              //                   Provider.of<AddressProvider>(context,
+              //                       listen: false);
+              //               addressProvider.updatePosition(
+              //                   lat: details['geometry']['location']['lat'],
+              //                   long: details['geometry']['location']['lng'],
+              //                   address: [
+              //                     Placemark(
+              //                       name: "Home",
+              //                       street: formattedAddress,
+              //                       locality: city,
+              //                       administrativeArea: state,
+              //                       country: country,
+              //                       postalCode: postalCode,
+              //                     )
+              //                   ]);
+
+              //               // Add to API bloc with proper structure
+              //               apiBloc.add(CreateAddress(add: addressData));
+              //               Navigator.pop(context);
+              //             }
+              //           },
+              //           child: ListTile(
+              //             title: Text(listOfLocation[index]["description"]),
+              //           ),
+              //         );
+              //       },
+              //     ),
+              //   ),
+              // ),
+
+              // Center(
+              //     child: Text(
+              //   "OR",
+              //   style: TextStyle(fontSize: 16, color: AppColors.primaryColor),
+              // )),
+
               ElevatedButton.icon(
                 onPressed: () {
                   // Handle using current location
-
                   getLocation(context);
+                  Navigator.pop(
+                      context); // Return to previous screen after getting location
                 },
                 icon: const Icon(Icons.my_location),
                 label: const Text("Use Current Location"),
@@ -166,36 +281,90 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
   }
 
   getLocation(context) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      var userID = prefs.getString("UserID");
+      if (userID == null) {
+        showToast(
+          text: "User ID not found. Please login again.",
+          color: Colors.red,
+          context: context
+        );
+        return;
+      }
 
-    var userID = prefs.getString("UserID");
+      Position position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
 
-    Position position = await Geolocator.getCurrentPosition(
-        locationSettings: LocationSettings(accuracy: LocationAccuracy.high));
+      List<Placemark> addresses = await placemarkFromCoordinates(position.latitude, position.longitude);
+      var first = addresses.first;
 
-    List<Placemark> addresses =
-        await placemarkFromCoordinates(position.latitude, position.longitude);
-    var first = addresses.first;
-    String address =
-        '${first.name!} ${first.subLocality!} ${first.administrativeArea} ${first.postalCode!}';
+      // Ensure we have a valid postal code
+      if (first.postalCode == null || first.postalCode!.isEmpty) {
+        showToast(
+          text: "Could not determine PIN code for this location. Please select a different location.",
+          color: Colors.red,
+          context: context
+        );
+        return;
+      }
 
-    final AddressProvider addressProvider =
-        Provider.of<AddressProvider>(context, listen: false);
-    addressProvider.updatePosition(
-        lat: position.latitude, long: position.longitude, address: addresses);
+      // Format address components, filtering out null or empty values
+      List<String?> addressComponents = [
+        first.name,
+        first.subLocality,
+        first.locality,
+        first.administrativeArea,
+        first.postalCode,
+        first.country
+      ];
+      String address = addressComponents
+          .where((component) => component != null && component.isNotEmpty)
+          .join(', ');
 
-    apiBloc.add(CreateAddress(add: {
-      "title": "Home",
-      "address": address,
-      "city": "",
-      "state": "",
-      "country": first.country,
-      "pin": first.country,
-      "latlong": {
-        "coordinates": [position.latitude, position.longitude]
-      },
-      "userId": userID
-    }));
+      // Update the address provider
+      final AddressProvider addressProvider = Provider.of<AddressProvider>(context, listen: false);
+      addressProvider.updatePosition(
+        lat: position.latitude,
+        long: position.longitude,
+        address: addresses
+      );
+
+      // Create the address object
+      final Map<String, dynamic> addressData = {
+        "title": "Home",
+        "address": address,
+        "city": first.locality ?? first.subLocality ?? "",
+        "state": first.administrativeArea ?? "",
+        "country": first.country ?? "",
+        "pin": first.postalCode,
+        "latlong": {
+          "type": "Point",
+          "coordinates": [position.longitude, position.latitude]
+        },
+        "userId": userID
+      };
+
+      apiBloc.add(CreateAddress(add: addressData));
+
+      // Return to previous screen with location data
+      Navigator.pop(context, {
+        'formattedAddress': address,
+        'coordinates': {'lat': position.latitude, 'lng': position.longitude},
+        'street': first.name,
+        'city': first.locality,
+        'state': first.administrativeArea,
+        'country': first.country,
+        'postalCode': first.postalCode,
+        'fullAddress': addresses
+      });
+    } catch (e) {
+      showToast(
+        text: "Error getting location: ${e.toString()}",
+        color: Colors.red,
+        context: context
+      );
+    }
   }
 
   final searchController = TextEditingController();
@@ -243,6 +412,27 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
     }
   }
 
+  Future<Map<String, dynamic>?> getPlaceDetails(String placeId) async {
+    final sessionToken = const Uuid().v4();
+    final String request =
+        'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=AIzaSyDBjiwvS69uqWRXdAD4c1oF6Qobsfqj5Rg&sessiontoken=$sessionToken';
+
+    try {
+      final response = await http.get(Uri.parse(request));
+
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        if (result['status'] == 'OK') {
+          return result['result'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error: $e');
+      return null;
+    }
+  }
+
   addressLayout(Address address) {
     return Expanded(
       child: ListView.builder(
@@ -252,6 +442,23 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
             child: ListTile(
               title: Text(address.data[index].title.toString()),
               subtitle: Text(address.data[index].address.toString()),
+              onTap: () {
+                // Return the selected address data to the previous screen
+                final locationData = {
+                  'formattedAddress': address.data[index].address,
+                  'street': address.data[index].address,
+                  'city': address.data[index].city,
+                  'state': address.data[index].state,
+                  'country': address.data[index].country,
+                  'postalCode': address.data[index].pin,
+                  'coordinates': {
+                    'lat': address.data[index].latlong?.coordinates?[1] ?? 0.0,
+                    'lng': address.data[index].latlong?.coordinates?[0] ?? 0.0
+                  },
+                  'fullAddress': address.data[index]
+                };
+                Navigator.pop(context, locationData);
+              },
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -337,4 +544,43 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
       ),
     );
   }
+
+  void showLocationConfirmationDialog(BuildContext context, Map<String, dynamic> locationData) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Location'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Address: ${locationData['formattedAddress']}'),
+              const SizedBox(height: 8),
+              Text('City: ${locationData['city']}'),
+              Text('State: ${locationData['state']}'),
+              Text('PIN: ${locationData['postalCode']}'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                // Pop dialog
+                Navigator.pop(context);
+                // Return location data to previous screen
+                Navigator.pop(context, locationData);
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Removed duplicate build method.
 }

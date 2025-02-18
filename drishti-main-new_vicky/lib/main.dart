@@ -125,33 +125,46 @@ void main() async {
 
   Bloc.observer = AppBlocObserver();
 
-  final profileService =
-      ProfileService(); // Create an instance of ProfileService
+  final profileService = ProfileService();
+  final profileRepository = ProfileRepositoryImpl(profileService: profileService);
+  final authRepository = AuthRepositoryImp();
+  final eventsRepository = AllEventsRepositoryImpl();
 
-  runApp(MultiBlocProvider(
+  runApp(MultiProvider(
     providers: [
-      ChangeNotifierProvider(create: (context) => CourseSelectionProvider()),
-      ChangeNotifierProvider(create: (context) => LocationProvider()),
-      ChangeNotifierProvider(create: (context) => AddressProvider()),
-      ChangeNotifierProvider(
-          create: (context) => CreateEventProvider(CreateEventModel())),
-      ChangeNotifierProvider(create: (context) => CourseListProvider()),
-      ChangeNotifierProvider(create: (context) => BottomSheetContentProvider()),
-      ChangeNotifierProvider(create: (context) => HomeProvider()),
-      ChangeNotifierProvider(create: (context) => TeacherProvider(TData())),
-      BlocProvider(create: (context) => UserLocationBloc()),
-      BlocProvider(
-          create: (context) => ProfileDetailsBloc(
-              ProfileRepositoryImpl(profileService: profileService))),
-      BlocProvider(
-          create: (context) => ProfileBloc(
-              ProfileRepositoryImpl(profileService: profileService))),
-      BlocProvider(
-          create: (context) => CreateEventBloc(AllEventsRepositoryImpl())),
-      BlocProvider(
-          create: (context) => AuthenticationBloc(AuthRepositoryImp())),
-      BlocProvider(
-          create: (context) => AllEventBloc(AllEventsRepositoryImpl())),
+      // ChangeNotifierProviders
+      ChangeNotifierProvider(create: (_) => CourseSelectionProvider()),
+      ChangeNotifierProvider(create: (_) => LocationProvider()),
+      ChangeNotifierProvider(create: (_) => AddressProvider()),
+      ChangeNotifierProvider(create: (_) => CreateEventProvider(CreateEventModel(
+        mode: null,
+        aol: [],
+        title: [],
+        recurring: false,
+        durationFrom: null,
+        durationTo: null,
+        timeOffset: null,
+        meetingLink: null,
+        phoneNumber: [],
+        address: [],
+        description: null,
+        registrationLink: null,
+        coordinates: [],
+        teachers: [],
+        date: EventDateTime(from: null, to: null),
+      ))),
+      ChangeNotifierProvider(create: (_) => CourseListProvider()),
+      ChangeNotifierProvider(create: (_) => BottomSheetContentProvider()),
+      ChangeNotifierProvider(create: (_) => HomeProvider()),
+      ChangeNotifierProvider(create: (_) => TeacherProvider(TData())),
+      
+      // BlocProviders
+      BlocProvider(create: (_) => UserLocationBloc()),
+      BlocProvider(create: (_) => ProfileDetailsBloc(profileRepository)),
+      BlocProvider(create: (_) => ProfileBloc(profileRepository)),
+      BlocProvider(create: (_) => CreateEventBloc(eventsRepository)),
+      BlocProvider(create: (_) => AuthenticationBloc(authRepository)),
+      BlocProvider(create: (_) => AllEventBloc(eventsRepository)),
     ],
     child: const MyApp(),
   ));

@@ -38,6 +38,32 @@ class AddAddressScreenState extends State<AddAddressScreen> {
     if (widget.addressData != null && widget.addressData!.id.isNotEmpty) {
       addressController.text = widget.addressData!.address;
       pincodeController.text = widget.addressData!.pin;
+      // When location is selected, parse the components
+      String extractCityFromAddress(String fullAddress) {
+        List<String> components = fullAddress.split(',');
+        // For "Texas, USA" format, we should use the first component as state
+        // and set city appropriately
+        if (components.length >= 1) {
+          return components[0]
+              .trim(); // Use first component as city if no better option
+        }
+        return '';
+      }
+
+      // In the data() method, before making API call:
+      if (selectedCity.isEmpty) {
+        // Try to extract city from address
+        selectedCity = extractCityFromAddress(addressController.text);
+      }
+
+      // Validate all required fields
+      if (selectedCity.isEmpty) {
+        showToast(
+            text: "Please select or enter a valid city",
+            color: Colors.red,
+            context: context);
+        return;
+      }
       selectedCountry = widget.addressData!.country;
       selectedCity = widget.addressData!.city;
       selectedState = widget.addressData!.state;
@@ -70,6 +96,33 @@ class AddAddressScreenState extends State<AddAddressScreen> {
   ApiBloc apiBloc = ApiBloc();
 
   data(context) async {
+    // Validate required fields
+    if (pincodeController.text.trim().isEmpty) {
+      showToast(
+          text: "Please enter a valid PIN code",
+          color: Colors.red,
+          context: context);
+      return;
+    }
+
+    if (addressController.text.trim().isEmpty) {
+      showToast(
+          text: "Please enter a complete address",
+          color: Colors.red,
+          context: context);
+      return;
+    }
+
+    if (selectedCity.isEmpty ||
+        selectedState.isEmpty ||
+        selectedCountry.isEmpty) {
+      showToast(
+          text: "Please select country, state and city",
+          color: Colors.red,
+          context: context);
+      return;
+    }
+
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     var userID = prefs.getString("UserID");
 

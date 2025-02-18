@@ -657,6 +657,15 @@ const createAddressController = async (req, res) => {
   }
 };
 
+const createEventController = async (req, res) => {
+  try {
+    const event = await userService.createEventService(req);
+    return createResponse(res, httpStatus.CREATED, 'Event created successfully', event);
+  } catch (error) {
+    return createResponse(res, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message || 'Failed to create event');
+  }
+};
+
 module.exports = {
   userLoginController,
   updateLocationController,
@@ -676,5 +685,6 @@ module.exports = {
   getSocialMediaController,
   searchUsers,
   getUser,
-  createAddressController
+  createAddressController,
+  createEventController,
 };
