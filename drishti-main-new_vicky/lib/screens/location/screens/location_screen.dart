@@ -18,6 +18,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
+import 'package:fluttertoast/fluttertoast.dart';
 
 class LocationScreen extends StatefulWidget {
   const LocationScreen({super.key});
@@ -31,6 +32,7 @@ class _LocationScreenState extends State<LocationScreen> {
   final String token = '1234567890';
   var uuid = const Uuid();
   List<dynamic> listOfLocation = [];
+  bool isLoading = false;
 
   _onChange() {
     print("Search input changed: ${searchController.text}");
@@ -51,6 +53,10 @@ class _LocationScreenState extends State<LocationScreen> {
 
       print("Making API call to: $request");
 
+      setState(() {
+        isLoading = true;
+      });
+
       var response = await http.get(Uri.parse(request));
       var data = json.decode(response.body);
 
@@ -69,6 +75,134 @@ class _LocationScreenState extends State<LocationScreen> {
       }
     } catch (e) {
       print("Error during API call: ${e.toString()}");
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  void selectLocation(String placeId) async {
+    print("Selected location with place ID: $placeId");
+
+    const String apiKey = "AIzaSyDBjiwvS69uqWRXdAD4c1oF6Qobsfqj5Rg";
+    String detailsUrl =
+        "https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey";
+
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      var response = await http.get(Uri.parse(detailsUrl));
+      var data = json.decode(response.body);
+
+      print("Place details received: $data");
+
+      if (response.statusCode == 200) {
+        var result = data['result'];
+        String address = result['formatted_address'];
+        var location = result['geometry']['location'];
+        double lat = location['lat'];
+        double lng = location['lng'];
+
+        print("Selected location: $address, Lat: $lat, Lng: $lng");
+
+        // Display the selected location
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Selected Location'),
+            content: Text(address),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              TextButton(
+                child: const Text('Confirm'),
+                onPressed: () async {
+                  Navigator.of(context).pop(); // Close confirmation dialog
+
+                  try {
+                    String? token =
+                        await SharedPreferencesHelper.getAccessToken() ??
+                            await SharedPreferencesHelper.getRefreshToken();
+
+                    if (token == null) {
+                      throw Exception("Authentication token not found");
+                    }
+
+                    // Update location using API bloc
+                    apiBloc.add(
+                      UpdateUserLocation(
+                        add: {"lat": lat, "long": lng, "location": address},
+                        header: {'Authorization': 'Bearer $token'},
+                      ),
+                    );
+
+                    // Show loading indicator
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      },
+                    );
+
+                    // Listen for API response
+                    apiBloc.stream.listen((state) {
+                      if (state is Error) {
+                        Navigator.pop(context); // Remove loading indicator
+                        Fluttertoast.showToast(
+                          msg: state.message ?? 'Error updating location',
+                          toastLength: Toast.LENGTH_SHORT,
+                          gravity: ToastGravity.BOTTOM,
+                          backgroundColor: Colors.red,
+                          textColor: Colors.white,
+                        );
+                      } else if (state is Loaded) {
+                        Navigator.pop(context); // Remove loading indicator
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const BottomNavigationScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
+                    });
+                  } catch (e) {
+                    Fluttertoast.showToast(
+                      msg: 'Error updating location',
+                      toastLength: Toast.LENGTH_SHORT,
+                      gravity: ToastGravity.BOTTOM,
+                      backgroundColor: Colors.red,
+                      textColor: Colors.white,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      } else {
+        print(
+            "Failed to fetch place details. Status code: ${response.statusCode}");
+        throw Exception("Failed to fetch place details");
+      }
+    } catch (e) {
+      print("Error fetching place details: ${e.toString()}");
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -79,7 +213,8 @@ class _LocationScreenState extends State<LocationScreen> {
     // final SharedPreferences prefs = await SharedPreferences.getInstance();
 
     // var userID = prefs.getString("UserID");
-    String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+    String? token = await SharedPreferencesHelper.getAccessToken() ??
+        await SharedPreferencesHelper.getRefreshToken();
     print("Token: $token");
 
     dynamic headers = {
@@ -195,6 +330,9 @@ class _LocationScreenState extends State<LocationScreen> {
                       borderSide: const BorderSide(color: Colors.black38),
                       borderRadius: BorderRadius.circular(6),
                     ),
+                    suffixIcon: isLoading
+                        ? const CircularProgressIndicator()
+                        : const Icon(Icons.search),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -237,15 +375,11 @@ class _LocationScreenState extends State<LocationScreen> {
                   child: Expanded(
                     child: ListView.builder(
                       shrinkWrap: true,
-                      // physics: const NeverScrollableScrollPhysics(),
                       itemCount: listOfLocation.length,
                       itemBuilder: (context, index) {
                         return GestureDetector(
-                          onTap: () async {
-                            print(
-                                "Location selected: ${listOfLocation[index]["description"]}");
-                            // You can handle selection here
-                          },
+                          onTap: () => selectLocation(
+                              listOfLocation[index]['place_id'].toString()),
                           child: ListTile(
                             title: Text(listOfLocation[index]["description"]),
                           ),
