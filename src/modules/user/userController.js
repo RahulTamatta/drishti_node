@@ -628,6 +628,35 @@ async function getUser(request, response) {
   }
 }
 
+const createAddressController = async (req, res) => {
+  try {
+    // Validate user authentication
+    if (!req.user || !req.user.id) {
+      return createResponse(res, httpStatus.UNAUTHORIZED, 'Authentication required');
+    }
+
+    // Add user ID to request body
+    req.body.userId = req.user.id;
+
+    // Call service to create address
+    const result = await userService.createAddressService(req);
+
+    return createResponse(
+      res,
+      httpStatus.CREATED,
+      'Address created successfully',
+      result
+    );
+  } catch (error) {
+    console.error('Create address controller error:', error);
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || 'Failed to create address'
+    );
+  }
+};
+
 module.exports = {
   userLoginController,
   updateLocationController,
@@ -646,5 +675,6 @@ module.exports = {
   getNearbyVisible,
   getSocialMediaController,
   searchUsers,
-  getUser
+  getUser,
+  createAddressController
 };

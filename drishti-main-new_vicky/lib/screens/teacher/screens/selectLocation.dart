@@ -296,7 +296,8 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
         listener: (context, state) {
           if (state is Error && state.message != null) {
             showToast(
-                text: state.message ?? 'Unknown error', // Provide a default value
+                text:
+                    state.message ?? 'Unknown error', // Provide a default value
                 color: Colors.red,
                 context: context);
           }
