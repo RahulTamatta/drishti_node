@@ -68,7 +68,7 @@ class ProfileService {
   }
 
   Future<OnboardResponse?> addProfileDetails({
-    required String username,
+    required String userName,  // Changed from username to userName
     required String fullName,
     required String email,
     required String phoneNumber,
@@ -79,7 +79,7 @@ class ProfileService {
   }) async {
     try {
       // Validate input
-      if (username.isEmpty ||
+      if (userName.isEmpty ||
           fullName.isEmpty ||
           email.isEmpty ||
           phoneNumber.isEmpty) {
@@ -104,7 +104,7 @@ class ProfileService {
 
       // Add basic profile data
       formData.fields.addAll([
-        MapEntry('userName', username),
+        MapEntry('userName', userName),  // Using consistent field name
         MapEntry('name', fullName),
         MapEntry('email', email),
         MapEntry('mobileNo', phoneNumber),

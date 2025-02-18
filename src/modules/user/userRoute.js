@@ -6,8 +6,16 @@ const httpStatus = require("../../common/utils/status.json");
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
+
+// Custom middleware to log form data
+const logFormData = (req, res, next) => {
+  console.log('=== Form Data Debug ===');
+  console.log('Body:', req.body);
+  console.log('Files:', req.files);
+  next();
+};
 
 // Define the upload fields for different routes
 const profileUpload = upload.fields([
@@ -79,8 +87,9 @@ router
   .post(
     [
       auth(ROLES.ALL),
-      validate(onBoardUserV),
-      profileUpload
+      profileUpload,  // Process form data first
+      logFormData,    // Then log the processed data
+      validate(onBoardUserV)  // Then validate the processed data
     ],
     onBoardUserController
   )

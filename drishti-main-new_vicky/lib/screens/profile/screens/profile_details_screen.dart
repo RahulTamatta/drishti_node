@@ -103,7 +103,8 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       _isLoading = false;
 
       // Set profile image if exists
-      if (userDetails.profileImage != null && userDetails.profileImage.isNotEmpty) {
+      if (userDetails.profileImage != null &&
+          userDetails.profileImage.isNotEmpty) {
         setState(() {
           profileImageUrl = userDetails.profileImage;
         });
@@ -126,7 +127,8 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           } else if (state is FailedToFetchProfileDetails) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Failed to load profile: ${state.profileResponse.message}'),
+                content: Text(
+                    'Failed to load profile: ${state.profileResponse.message}'),
                 backgroundColor: Colors.red,
               ),
             );
@@ -141,7 +143,8 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             final userDetails = state.profileResponse.data;
             if (userDetails != null) {
               if ((userDetails.role.toLowerCase() == "teacher" &&
-                      userDetails.teacherRoleApproved.toLowerCase() == 'accepted') ||
+                      userDetails.teacherRoleApproved.toLowerCase() ==
+                          'accepted') ||
                   userDetails.role.toLowerCase() == "admin") {
                 return TeacherProfileScreen(userDetails: userDetails);
               } else if (userDetails.email.isNotEmpty ||
@@ -164,10 +167,12 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile updated successfully')),
           );
-          Navigator.pop(context);  // Return to previous screen after successful update
+          Navigator.pop(
+              context); // Return to previous screen after successful update
         } else if (state is ProfileDetailsAddedFailed) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.profileRes.message ?? 'Update failed')),
+            SnackBar(
+                content: Text(state.profileRes.message ?? 'Update failed')),
           );
         }
       },
@@ -221,6 +226,9 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             if (value == null || value.isEmpty) {
               return 'Please enter a username';
             }
+            if (value.length < 3) {
+              return 'Username must be at least 3 characters';
+            }
             return null;
           },
         ),
@@ -232,6 +240,9 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             if (value == null || value.isEmpty) {
               return 'Please enter full name';
             }
+            if (value.length < 2) {
+              return 'Name must be at least 2 characters';
+            }
             return null;
           },
         ),
@@ -242,13 +253,56 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           prefixIcon: Icons.email_outlined,
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'Please enter e-mail';
+              return 'Please enter email';
+            }
+            final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+            if (!emailRegex.hasMatch(value)) {
+              return 'Please enter a valid email';
             }
             return null;
           },
         ),
         const SizedBox(height: 20),
-        buildPhoneField(),
+        TextFormField(
+          controller: _numberController,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter phone number';
+            }
+            if (value.length != 10) {
+              return 'Phone number must be 10 digits';
+            }
+            return null;
+          },
+          style: TextStyle(
+              fontSize: 16.sp,
+              color: Colors.black,
+              fontWeight: FontWeight.w400),
+          maxLength: 10,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: "Phone number",
+            hintStyle: TextStyle(fontSize: 14.sp, color: Colors.black54),
+            contentPadding: EdgeInsets.all(5.sp),
+            prefixIcon: const Icon(Icons.phone, color: Colors.black12),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(7),
+              borderSide: const BorderSide(color: Colors.black12),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.black12),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: BorderRadius.circular(7),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -451,28 +505,6 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   Future<void> profileApi(BuildContext context1) async {
     try {
       if (!_formKey.currentState!.validate()) {
-        showToast(
-            text: "Please fill all required fields",
-            color: Colors.red,
-            context: context1);
-        return;
-      }
-
-      // Validate email format
-      final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-      if (!emailRegex.hasMatch(_emailController.text.trim())) {
-        showToast(
-            text: "Please enter a valid email address",
-            color: Colors.red,
-            context: context1);
-        return;
-      }
-
-      if (_numberController.text.length != 10) {
-        showToast(
-            text: "Phone number must be 10 digits",
-            color: Colors.red,
-            context: context1);
         return;
       }
 
@@ -487,14 +519,58 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       // Create FormData instance
       final formData = FormData();
 
+      // Validate required fields first
+      final userName = _usernameController.text.trim();
+      final name = _nameController.text.trim();
+
+      if (userName.isEmpty || name.isEmpty) {
+        showToast(
+            text: "Username and name are required",
+            color: Colors.red,
+            context: context1);
+        return;
+      }
+
+      final isTeacher = _selectedOption.value == YesNoOption.yes;
+      final role = isTeacher ? 'teacher' : 'user';
+
+      // Prepare all fields with correct field names
+      final Map<String, String> fields = {
+        'userName': userName, // Ensure this matches server expectation
+        'name': name,
+        'email': _emailController.text.trim(),
+        'mobileNo': _numberController.text.trim(),
+        'role': role,
+        'bio': '',
+        'youtubeUrl': '',
+        'xUrl': '',
+        'instagramUrl': '',
+        'nearByVisible': 'false',
+        'locationSharing': 'false'
+      };
+
+      // Add teacher-specific fields
+      if (isTeacher) {
+        final teacherId = _teacherIdController.text.trim();
+        if (teacherId.isEmpty) {
+          showToast(
+              text: "Please enter your teacher ID",
+              color: Colors.red,
+              context: context1);
+          return;
+        }
+        fields['teacherId'] = teacherId;
+      }
+
+      // Add all fields to form data
+      fields.forEach((key, value) {
+        formData.fields.add(MapEntry(key, value));
+      });
+
       // Process profile image
       if (profileImage != null && await profileImage!.exists()) {
+        String? mimeType = lookupMimeType(profileImage!.path) ?? 'image/jpeg';
         print('Processing profile image: ${profileImage!.path}');
-        String? mimeType = lookupMimeType(profileImage!.path);
-        if (mimeType == null) {
-          // Default to image/jpeg if MIME type can't be determined
-          mimeType = 'image/jpeg';
-        }
         print('Profile image MIME type: $mimeType');
 
         final profileImageFile = await MultipartFile.fromFile(
@@ -503,108 +579,105 @@ class ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
               'profile_${DateTime.now().millisecondsSinceEpoch}.${mimeType.split('/').last}',
           contentType: MediaType.parse(mimeType),
         );
+
+        formData.files.removeWhere((file) => file.key == 'profileImage');
         formData.files.add(MapEntry('profileImage', profileImageFile));
       }
 
-      // Trim and validate fields
-      final username = _usernameController.text.trim();
-      final name = _nameController.text.trim();
-      final email = _emailController.text.trim().toLowerCase();
-      final mobileNo = _numberController.text.trim();
-
-      if (username.isEmpty ||
-          name.isEmpty ||
-          email.isEmpty ||
-          mobileNo.isEmpty) {
-        showToast(
-            text: "All fields must be filled",
-            color: Colors.red,
-            context: context1);
-        return;
-      }
-
-      // Add basic user data
-      formData.fields.addAll([
-        MapEntry('userName', username),
-        MapEntry('name', name),
-        MapEntry('email', email),
-        MapEntry('mobileNo', mobileNo),
-        MapEntry('role',
-            _selectedOption.value == YesNoOption.yes ? 'teacher' : 'user'),
-      ]);
-
-      // Handle teacher-specific data
-      if (_selectedOption.value == YesNoOption.yes) {
-        if (_imageFile == null || !await _imageFile!.exists()) {
-          showToast(
-              text: "Please select a valid teacher ID document",
-              color: Colors.red,
-              context: context1);
-          return;
-        }
-
-        String? teacherIdMimeType = lookupMimeType(_imageFile!.path);
-        if (teacherIdMimeType == null) {
-          teacherIdMimeType = 'application/octet-stream';
-        }
-        print('Teacher ID MIME type: $teacherIdMimeType');
-
+      // Process teacher ID card if needed
+      if (isTeacher && _imageFile != null && await _imageFile!.exists()) {
+        String? teacherIdMimeType =
+            lookupMimeType(_imageFile!.path) ?? 'application/octet-stream';
         final teacherIdFile = await MultipartFile.fromFile(
           _imageFile!.path,
           filename:
               'teacher_id_${DateTime.now().millisecondsSinceEpoch}.${teacherIdMimeType.split('/').last}',
           contentType: MediaType.parse(teacherIdMimeType),
         );
-        formData.files.add(MapEntry('teacherIdCard', teacherIdFile));
 
-        if (_teacherIdController.text.trim().isEmpty) {
-          showToast(
-              text: "Please enter your teacher ID",
-              color: Colors.red,
-              context: context1);
-          return;
-        }
-        formData.fields
-            .add(MapEntry('teacherId', _teacherIdController.text.trim()));
-        formData.fields.add(MapEntry('role', "teacher"));
-      } else {
-        formData.fields.add(MapEntry('role', "user"));
+        formData.files.removeWhere((file) => file.key == 'teacherIdCard');
+        formData.files.add(MapEntry('teacherIdCard', teacherIdFile));
       }
 
-      // Extensive logging
-      print("Form Data Fields: ${formData.fields}");
-      print("Form Data Files: ${formData.files}");
+      // Log request data
+      print('=== Profile Update Request ===');
+      print(
+          'Fields to be sent: ${formData.fields.map((f) => '${f.key}: ${f.value}').join('\n')}'); // Detailed logging
+      print(
+          'Files: ${formData.files.map((f) => '${f.key}: ${f.value.filename}').join('\n')}'); // Detailed logging
 
       await data(formData);
-    } catch (e) {
-      print("Error in profileApi: $e");
-      showToast(
-          text: "Error processing request: $e",
-          color: Colors.red,
-          context: context1);
+    } catch (e, stackTrace) {
+      print('=== Error in profileApi ===');
+      print('Error: $e');
+      print('Stack trace: $stackTrace');
+
+      String errorMessage = 'Error processing request';
+      if (e.toString().contains('422')) {
+        errorMessage = 'Username and name are required';
+      } else if (e.toString().contains('409')) {
+        errorMessage = 'Username or email already exists';
+      }
+
+      showToast(text: errorMessage, color: Colors.red, context: context1);
     }
   }
 
   Future<void> data(FormData formData) async {
-    String? token = await SharedPreferencesHelper.getAccessToken() ??
-        await SharedPreferencesHelper.getRefreshToken();
+    try {
+      String? token = await SharedPreferencesHelper.getAccessToken() ??
+          await SharedPreferencesHelper.getRefreshToken();
 
-    if (token!.isEmpty) {
-      showToast(
-          text: "Authentication failed. Please login again.",
-          color: Colors.red,
-          context: context);
-      return;
+      if (token == null || token.isEmpty) {
+        showToast(
+            text: "Authentication failed. Please login again.",
+            color: Colors.red,
+            context: context);
+        return;
+      }
+
+      final headers = {
+        'Authorization': token,
+      };
+
+      print("=== Adding Profile START ===");
+      print("Form Data Fields: ${formData.fields}");
+      print("Form Data Files: ${formData.files}");
+      print("Authorization Token: $token");
+
+      // Add the profile
+      apiBloc.add(AddProfile(add: formData, header: headers));
+
+      // Listen for the response
+      apiBloc.stream.listen(
+        (state) {
+          if (state is Error) {
+            showToast(
+                text: state.message ?? 'Profile update failed',
+                color: Colors.red,
+                context: context);
+          } else if (state is Loaded) {
+            showToast(
+                text: 'Profile updated successfully',
+                color: Colors.green,
+                context: context);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BottomNavigationScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        },
+        onError: (error) {
+          showToast(text: 'Error: $error', color: Colors.red, context: context);
+        },
+      );
+    } catch (e) {
+      print('Error in data method: $e');
+      showToast(text: 'Error: $e', color: Colors.red, context: context);
     }
-
-    final headers = {
-      'Authorization': token,
-      'Content-Type': 'multipart/form-data'
-    };
-
-    print("Sending request with headers: $headers"); // Debug print
-
-    apiBloc.add(AddProfile(add: formData, header: headers));
 
     showDialog(
       barrierDismissible: false,

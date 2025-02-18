@@ -129,8 +129,10 @@ class ProfileScreenState extends State<ProfileScreen> {
             );
             setState(() => _isEditing = false);
           } else if (state is FailedToUpdateProfileDetails) {
-            if (state.profileResponse.statusCode == 401) {
-              _handleTokenRefresh();
+            if (state.profileResponse.statusCode == 422) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Please provide a user name')),
+              );
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -400,22 +402,59 @@ class ProfileScreenState extends State<ProfileScreen> {
     _isTeacher = userDetails.role == 'teacher';
   }
 
-  Future<void> _saveChanges(context) async {
-    profileApi(context);
-    // if (_formKey.currentState!.validate()) {
-    //   final updatedProfile = UserDetailsModel(
-    //     userName: _usernameController.text,
-    //     name: _fullNameController.text,
-    //     email: _emailController.text,
-    //     mobileNo: _mobileController.text,
-    //     role: _isTeacher == true ? "teacher" : "user",
-    //     id: userID, // Ensure the correct ID is set here
-    //   );
+  void _saveChanges(context) async {
+    if (_formKey.currentState!.validate()) {
+      // Existing form data
+      Map<String, dynamic> formDataMap = {
+        'userName': _usernameController.text.trim(),
+        'name': _fullNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'mobileNo': _mobileController.text.trim(),
+        'role': _isTeacher ? "teacher" : "user",
+        'bio': '',
+        'youtubeUrl': '',
+        'xUrl': '',
+        'instagramUrl': '',
+        'nearByVisible': false,
+        'locationSharing': false,
+      };
 
-    //   context
-    //       .read<ProfileDetailsBloc>()
-    //       .add(UpdateProfileDetails(updatedProfile: updatedProfile));
-    // }
+      // Add profile image
+      final profileMultipart = await dio.MultipartFile.fromFile(
+        profileImage!.path,
+        filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpeg',
+        contentType: dio.DioMediaType('image', 'jpeg'),
+      );
+
+      dio.FormData formData = dio.FormData.fromMap(formDataMap);
+      formData.files.add(
+        MapEntry('profileImage', profileMultipart),
+      );
+
+      // Add teacher specific data if user is a teacher
+      if (_isTeacher) {
+        if (_imageFile == null) {
+          showToast(
+            text: "Please select teacher ID card image",
+            color: Colors.red,
+            context: context,
+          );
+          return;
+        }
+
+        final teacherIdMultipart = await dio.MultipartFile.fromFile(
+          _imageFile!.path,
+          filename: 'teacher_id_${DateTime.now().millisecondsSinceEpoch}.jpeg',
+          contentType: dio.DioMediaType('image', 'jpeg'),
+        );
+
+        formData.fields.add(MapEntry('teacherId', _teacherIdController.text.trim()));
+        formData.files.add(MapEntry('teacherIdCard', teacherIdMultipart));
+      }
+
+      // Send data to API
+      data(formData); // Correct invocation with one argument
+    }
   }
 
   //flutter bloc for hiting api
@@ -451,7 +490,7 @@ class ProfileScreenState extends State<ProfileScreen> {
 
     dynamic headers = {
       'Authorization': 'Bearer ${token.toString()}'
-    }; // Add 'Bearer 'token.toString()};
+    }; // Correctly formatted Authorization header
 
     apiBloc.add(UpdateProfile(add: formData, header: headers, id: userID));
 
@@ -489,8 +528,7 @@ class ProfileScreenState extends State<ProfileScreen> {
       child: BlocListener<ApiBloc, BlocState>(
         listener: (context, state) {
           if (state is Error) {
-            //   showToast(
-            //       text: state.message!, color: Colors.red, context: context);
+            // Optionally handle errors
           }
         },
         child: BlocBuilder<ApiBloc, BlocState>(
@@ -518,64 +556,95 @@ class ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> profileApi(context1) async {
-    if (profileImage!.isAbsolute.toString().isNotEmpty) {
-      File file = profileImage!.absolute;
-
-      final multipartFile = await dio.MultipartFile.fromFile(file.path,
-          filename: file.path.split('/').last,
-          contentType: dio.DioMediaType('image', 'jpeg/png'));
-
-      if (_isTeacher) {
-        if (_imageFile!.isAbsolute.toString().isNotEmpty) {
-          File file1 = _imageFile!.isAbsolute.toString().isNotEmpty
-              ? _imageFile!.absolute
-              : File("");
-
-          final multipartFile1 = await dio.MultipartFile.fromFile(file1.path,
-              filename: file1.path.split('/').last,
-              contentType: dio.DioMediaType('image', 'jpeg/png'));
-
-          if (_formKey.currentState!.validate()) {
-            if (_mobileController.text.length == 10) {
-              dio.FormData formData = dio.FormData.fromMap({
-                "profileImage": multipartFile,
-                'userName': _usernameController.text,
-                'name': _fullNameController.text,
-                'email': _emailController.text,
-                'mobileNo': _mobileController.text,
-                'teacherId': _teacherIdController.text,
-                'teacherIdCard': multipartFile1,
-                'role': _isTeacher == true ? "teacher" : "user"
-              });
-              data(formData);
-            }
-          }
-        } else {
-          showToast(
-              text: "Please Select Teacher Id",
-              color: Colors.red,
-              context: context1);
-        }
-      } else {
-        if (_formKey.currentState!.validate()) {
-          if (_mobileController.text.length == 10) {
-            dio.FormData formData = dio.FormData.fromMap({
-              "profileImage": multipartFile,
-              'userName': _usernameController.text,
-              'name': _fullNameController.text,
-              'email': _emailController.text,
-              'mobileNo': _mobileController.text,
-              'role': "user"
-            });
-            data(formData);
-          }
-        }
-      }
-    } else {
+    // Validate form first
+    if (!_formKey.currentState!.validate()) {
       showToast(
-          text: "Please Select Profile Image First",
-          color: Colors.red,
-          context: context1);
+        text: "Please fill all required fields",
+        color: Colors.red,
+        context: context1,
+      );
+      return;
+    }
+
+    if (_mobileController.text.length != 10) {
+      showToast(
+        text: "Mobile number must be 10 digits",
+        color: Colors.red,
+        context: context1,
+      );
+      return;
+    }
+
+    // Check if profile image is selected
+    if (profileImage == null) {
+      showToast(
+        text: "Please select a profile image",
+        color: Colors.red,
+        context: context1,
+      );
+      return;
+    }
+
+    try {
+      // Create base form data
+      Map<String, dynamic> formDataMap = {
+        'userName': _usernameController.text.trim(),
+        'name': _fullNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'mobileNo': _mobileController.text.trim(),
+        'role': _isTeacher ? "teacher" : "user",
+        'bio': '',
+        'youtubeUrl': '',
+        'xUrl': '',
+        'instagramUrl': '',
+        'nearByVisible': false,
+        'locationSharing': false,
+      };
+
+      // Add profile image
+      final profileMultipart = await dio.MultipartFile.fromFile(
+        profileImage!.path,
+        filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpeg',
+        contentType: dio.DioMediaType('image', 'jpeg'),
+      );
+
+      // Create form data
+      dio.FormData formData = dio.FormData.fromMap(formDataMap);
+      formData.files.add(
+        MapEntry('profileImage', profileMultipart),
+      );
+
+      // Add teacher specific data if user is a teacher
+      if (_isTeacher) {
+        if (_imageFile == null) {
+          showToast(
+            text: "Please select teacher ID card image",
+            color: Colors.red,
+            context: context1,
+          );
+          return;
+        }
+
+        final teacherIdMultipart = await dio.MultipartFile.fromFile(
+          _imageFile!.path,
+          filename: 'teacher_id_${DateTime.now().millisecondsSinceEpoch}.jpeg',
+          contentType: dio.DioMediaType('image', 'jpeg'),
+        );
+
+        formData.fields.add(MapEntry('teacherId', _teacherIdController.text.trim()));
+        formData.files.add(MapEntry('teacherIdCard', teacherIdMultipart));
+      }
+
+      // Send data to API
+      data(formData); // Correct invocation with one argument
+
+    } catch (e) {
+      print("Error preparing form data: $e");
+      showToast(
+        text: "Error updating profile. Please try again.",
+        color: Colors.red,
+        context: context1,
+      );
     }
   }
 
@@ -585,6 +654,7 @@ class ProfileScreenState extends State<ProfileScreen> {
     _fullNameController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
+    _teacherIdController.dispose();
     super.dispose();
   }
 }

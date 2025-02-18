@@ -158,7 +158,7 @@ const verifyOtp = async (request) => {
         isOnboarded: false,
         name: '',
         email: '',
-        userName: '',
+        username: '',
         profileImage: '',
         teacherRoleApproved: 'pending',
         teacherId: '',
@@ -284,6 +284,8 @@ const updateLocation = async (request) => {
 
 
 
+const uploadToFirebase = require('../../common/utils/uploadToFirebase');
+
 const onBoardUser = async (request) => {
   try {
     console.log("onBoardUser called. Request body:", request.body);
@@ -297,7 +299,7 @@ const onBoardUser = async (request) => {
     const { 
       name, 
       email, 
-      userName, 
+      userName,  // Changed from username to userName
       mobileNo, 
       bio, 
       teacherId, 
@@ -310,90 +312,101 @@ const onBoardUser = async (request) => {
     } = request.body;
 
     // Validate required fields
-    if (!userName || !name) {
+    if (!userName || !name) {  // Changed from username to userName
       throw new appError(httpStatus.BAD_REQUEST, "Username and name are required");
     }
 
-    let profileImg = "";
-    let teacherIdCard = "";
+    // Check for existing username/email
+    const existingUser = await User.findOne({
+      $and: [
+        { _id: { $ne: request.user.id } },
+        {
+          $or: [
+            { userName: userName },  // Changed from username to userName
+            { email: email ? email.toLowerCase() : null }
+          ]
+        }
+      ]
+    });
 
-    // Handle file uploads
-    if (request.files && Object.keys(request.files).length > 0) {
-      try {
-        const filesToUpload = [];
-        if (request.files.profileImage?.[0]) {
-          filesToUpload.push(request.files.profileImage[0]);
-        }
-        if (request.files.teacherIdCard?.[0]) {
-          filesToUpload.push(request.files.teacherIdCard[0]);
-        }
-
-        if (filesToUpload.length > 0) {
-          const uploadedFiles = await uploadFilesToBucket(filesToUpload);
-          console.log("Uploaded files:", uploadedFiles);
-          
-          uploadedFiles.forEach(file => {
-            if (file.label?.startsWith('profileImage')) {
-              profileImg = file.link;
-            } else if (file.label?.startsWith('teacherIdCard')) {
-              teacherIdCard = file.link;
-            }
-          });
-        }
-      } catch (fileError) {
-        console.error("File upload error:", fileError);
-        throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed");
+    if (existingUser) {
+      if (existingUser.userName === userName) {  // Changed from username to userName
+        throw new appError(httpStatus.CONFLICT, "Username already exists");
+      }
+      if (email && existingUser.email === email.toLowerCase()) {
+        throw new appError(httpStatus.CONFLICT, "Email already exists");
       }
     }
 
-    const normalizedEmail = email ? email.toLowerCase() : null;
+    let profileImage = "";
+    let teacherIdCardUrl = "";
 
-    // Check for existing email/username
-    const [existingEmail, existingUsername] = await Promise.all([
-      normalizedEmail ? User.findOne({ 
-        email: normalizedEmail,
-        _id: { $ne: request.user.id }
-      }) : null,
-      User.findOne({ 
-        userName,
-        _id: { $ne: request.user.id }
-      })
-    ]);
+    // Handle file uploads
+    if (request.files) {
+      try {
+        // Handle profile image
+        if (request.files.profileImage && request.files.profileImage[0]) {
+          const profileImageFile = request.files.profileImage[0];
+          console.log('Uploading profile image:', profileImageFile.originalname);
+          profileImage = await uploadToFirebase(
+            profileImageFile.buffer,
+            `profiles/${request.user.id}/${Date.now()}_${profileImageFile.originalname}`,
+            profileImageFile.mimetype
+          );
+          console.log('Profile image uploaded:', profileImage);
+        }
 
-    if (existingEmail) {
-      throw new appError(httpStatus.CONFLICT, "Email already exists");
+        // Handle teacher ID card
+        if (request.files.teacherIdCard && request.files.teacherIdCard[0]) {
+          const teacherIdFile = request.files.teacherIdCard[0];
+          console.log('Uploading teacher ID card:', teacherIdFile.originalname);
+          teacherIdCardUrl = await uploadToFirebase(
+            teacherIdFile.buffer,
+            `teacher_ids/${request.user.id}/${Date.now()}_${teacherIdFile.originalname}`,
+            teacherIdFile.mimetype
+          );
+          console.log('Teacher ID card uploaded:', teacherIdCardUrl);
+        }
+      } catch (fileError) {
+        console.error("File upload error:", fileError);
+        throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed: " + fileError.message);
+      }
     }
-    if (existingUsername) {
-      throw new appError(httpStatus.CONFLICT, "Username already exists");
-    }
 
-    // Prepare update data
+    // Prepare user data for update
     const updateData = {
       name,
-      email: normalizedEmail,
-      userName,
+      userName,  // Changed from username to userName to match model
+      email: email ? email.toLowerCase() : undefined,
       mobileNo,
-      profileImage: profileImg || undefined,
+      bio,
+      role,
       isOnboarded: true,
-      bio: bio || '',
-      role: role === constants.ROLES.TEACHER ? constants.ROLES.TEACHER : constants.ROLES.USER,
-      youtubeUrl: youtubeUrl || '',
-      xUrl: xUrl || '',
-      instagramUrl: instagramUrl || '',
+      youtubeUrl,
+      xUrl,
+      instagramUrl,
       nearByVisible: Boolean(nearByVisible),
       locationSharing: Boolean(locationSharing)
     };
 
+    // Add profile image if uploaded
+    if (profileImage) {
+      updateData.profileImage = profileImage;
+    }
+
     // Add teacher-specific fields if role is teacher
-    if (role === constants.ROLES.TEACHER) {
-      updateData.teacherIdCard = teacherIdCard;
+    if (role === 'teacher') {
       updateData.teacherId = teacherId;
+      if (teacherIdCardUrl) {
+        updateData.teacherIdCard = teacherIdCardUrl;
+      }
+      updateData.teacherRoleApproved = 'pending';
     }
 
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
       request.user.id,
-      updateData,
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
@@ -401,15 +414,10 @@ const onBoardUser = async (request) => {
       throw new appError(httpStatus.NOT_FOUND, "User not found");
     }
 
-    console.log("User updated successfully:", updatedUser);
     return updatedUser;
-
   } catch (error) {
-    console.error("onBoardUser error:", error);
-    throw error instanceof appError ? error : new appError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "Failed to update user profile"
-    );
+    console.error('onBoardUser Error:', error);
+    throw error instanceof appError ? error : new appError(httpStatus.INTERNAL_SERVER_ERROR, error.message || "Failed to onboard user");
   }
 };
 
@@ -550,15 +558,15 @@ async function updateUser(params, request) {
       }
 
       if (
-        !isEmpty(params.userName) &&
-        params.userName != currentUser.userName
+        !isEmpty(params.username) &&
+        params.username != currentUser.username
       ) {
-        const userWithUserName = await User.findOne({
-          userName: params.userName,
+        const userWithUsername = await User.findOne({
+          username: params.username,
           deletedAt: null,
         });
-        if (isEmpty(userWithUserName)) {
-          user.userName = params.userName;
+        if (isEmpty(userWithUsername)) {
+          user.username = params.username;
         } else {
           throw new appError(
             httpStatus.CONFLICT,
@@ -615,7 +623,7 @@ async function getUser(currentUser) {
     name: user.name || '',
     profileImage: user.profileImage || '',
     teacherRoleApproved: user.teacherRoleApproved?.toLowerCase() || 'pending',
-    userName: user.userName || '',
+    username: user.username || '',
     teacherId: user.teacherId || '',
     teacherIdCard: user.teacherIdCard || ''
   };
@@ -737,7 +745,7 @@ const getNearbyVisibleUsers = async (longitude, latitude, radius = 1000) => {
           $maxDistance: radius,
         },
       },
-    }).select("userName profileImage role")
+    }).select("username profileImage role")
 
     return users;
   } catch (error) {
@@ -745,20 +753,20 @@ const getNearbyVisibleUsers = async (longitude, latitude, radius = 1000) => {
   }
 };
 
-const searchUsers = async (userName) => {
+const searchUsers = async (username) => {
   try {
-    if (!userName && userName !== '') {
+    if (!username && username !== '') {
       throw new appError(httpStatus.BAD_REQUEST, "Username parameter is required");
     }
 
-    const searchRegex = new RegExp(userName, 'i');
+    const searchRegex = new RegExp(username, 'i');
     
     const users = await User.find({
-      userName: searchRegex,
+      username: searchRegex,
       isOnboarded: true,
       status: { $ne: 'DELETED' }
     })
-    .select('_id userName mobileNo deviceTokens countryCode isOnboarded teacherRoleApproved role nearByVisible locationSharing createdAt updatedAt email name profileImage')
+    .select('_id username mobileNo deviceTokens countryCode isOnboarded teacherRoleApproved role nearByVisible locationSharing createdAt updatedAt email name profileImage')
     .limit(20);
 
     return users;

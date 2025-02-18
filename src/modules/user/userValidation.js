@@ -8,18 +8,18 @@ const onBoardUserV = {
     email: Joi.string().email().allow('').trim(),
     mobileNo: Joi.string().allow('').trim(),
     role: Joi.string().valid(constants.ROLES.USER, constants.ROLES.TEACHER).default(constants.ROLES.USER),
-    bio: Joi.string().allow('').trim(),
+    bio: Joi.string().allow('').trim().default(''),
     teacherId: Joi.when('role', {
       is: constants.ROLES.TEACHER,
       then: Joi.string().required().trim(),
       otherwise: Joi.string().allow('').optional()
     }),
-    youtubeUrl: Joi.string().allow('').trim().uri().optional(),
-    xUrl: Joi.string().allow('').trim().uri().optional(),
-    instagramUrl: Joi.string().allow('').trim().uri().optional(),
-    nearByVisible: Joi.boolean().default(false),
-    locationSharing: Joi.boolean().default(false)
-  })
+    youtubeUrl: Joi.string().allow('').trim().uri().optional().default(''),
+    xUrl: Joi.string().allow('').trim().uri().optional().default(''),
+    instagramUrl: Joi.string().allow('').trim().uri().optional().default(''),
+    nearByVisible: Joi.string().allow('true', 'false').default('false'),
+    locationSharing: Joi.string().allow('true', 'false').default('false')
+  }).unknown(true) // Allow unknown keys for file uploads
 };
 
 const userLoginV = {

@@ -114,6 +114,10 @@ async function deleteFileFromUrl(url) {
 
 const userLoginController = async (request, response) => {
   try {
+    const { error } = userValidation.validateLogin(request.body);
+    if (error) {
+      return response.status(422).json({ message: error.details[0].message });
+    }
     console.log("Login request body:", request.body);
     
     const data = await userService.userLoginService(request);
@@ -157,13 +161,67 @@ const updateLocationController = async (req, res) => {
 
 const onBoardUserController = async (req, res) => {
   try {
-    // Implement user onboarding logic
-    return createResponse(res, httpStatus.OK, "User onboarded successfully");
+    // Detailed request logging
+    console.log('=== onBoardUserController START ===');
+    console.log('Request body type:', typeof req.body);
+    console.log('Request body:', req.body);
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('userName value:', req.body.userName);
+    console.log('Content-Type:', req.get('Content-Type'));
+    console.log('Files:', req.files);
+    console.log('User:', req.user);
+    console.log('=== Request Data END ===');
+
+    if (!req.user || !req.user.id) {
+      return createResponse(
+        res,
+        httpStatus.UNAUTHORIZED,
+        'Authentication required'
+      );
+    }
+
+    const updatedUser = await userService.onBoardUser(req);
+    console.log('onBoardUserController - Updated user:', updatedUser);
+
+    if (!updatedUser) {
+      return createResponse(
+        res,
+        httpStatus.BAD_REQUEST,
+        'Failed to update user'
+      );
+    }
+
+    // Transform user data for response
+    const userData = {
+      id: updatedUser._id.toString(),
+      mobileNo: updatedUser.mobileNo || '',
+      countryCode: updatedUser.countryCode || '+91',
+      deviceTokens: Array.isArray(updatedUser.deviceTokens) ? updatedUser.deviceTokens : [],
+      isOnboarded: Boolean(updatedUser.isOnboarded),
+      role: updatedUser.role?.toLowerCase() || 'user',
+      createdAt: updatedUser.createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt: updatedUser.updatedAt?.toISOString() || new Date().toISOString(),
+      email: updatedUser.email || '',
+      name: updatedUser.name || '',
+      profileImage: updatedUser.profileImage || '',
+      teacherRoleApproved: updatedUser.teacherRoleApproved?.toLowerCase() || 'pending',
+      userName: updatedUser.userName || '',
+      teacherId: updatedUser.teacherId || '',
+      teacherIdCard: updatedUser.teacherIdCard || ''
+    };
+
+    return createResponse(
+      res,
+      httpStatus.OK,
+      'User onboarded successfully',
+      userData
+    );
   } catch (error) {
+    console.error('onBoardUserController Error:', error);
     return createResponse(
       res,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Onboarding failed"
+      error.message || 'Onboarding failed'
     );
   }
 };

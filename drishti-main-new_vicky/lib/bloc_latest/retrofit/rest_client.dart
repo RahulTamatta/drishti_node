@@ -4,12 +4,7 @@ import 'package:retrofit/retrofit.dart';
 import 'package:srisridrishti/models/search_user.dart';
 part 'rest_client.g.dart';
 
-const String baseUrl1 =
-// 'https://rest-rosy.vercel.app';
-
-    'http://10.0.2.2:8080';
-
-// "http://10.0.2.2:8080";
+const String baseUrl1 = 'http://10.0.2.2:8080';
 
 @RestApi(baseUrl: baseUrl1)
 abstract class RestClient {
@@ -31,6 +26,12 @@ abstract class RestClient {
 
     // InterceptorsWrapper makes it possible to observe or intercept everything that is API request.
     dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      // Set proper content type for multipart requests
+      if (options.data is FormData) {
+        options.headers["Content-Type"] = "multipart/form-data";
+      } else {
+        options.headers["Content-Type"] = "application/json";
+      }
       return handler.next(options);
     }, onResponse: (response, handler) {
       log("interceptor${response.data}");
@@ -41,8 +42,9 @@ abstract class RestClient {
     return _RestClient(dio, baseUrl: baseUrl);
   }
 
+  @MultiPart()
   @POST("/user/onBoard")
-  Future<dynamic> addProfile(@Body() add, dynamic header);
+  Future<dynamic> addProfile(@Part() FormData add, @Header("Authorization") String token);
 
   @PATCH("/user/onBoard/{id}")
   Future<dynamic> updateProfile(

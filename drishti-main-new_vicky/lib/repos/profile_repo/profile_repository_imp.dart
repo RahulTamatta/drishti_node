@@ -16,7 +16,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<OnboardResponse> addProfile(
       {required Map<String, dynamic> profileData}) async {
     final onboardResponse = await _profileService.addProfileDetails(
-      username: profileData['userName'] as String,
+      userName: profileData['userName'] as String,  // Changed from username to userName to match service
       fullName: profileData['name'] as String,
       email: profileData['email'] as String,
       phoneNumber: profileData['mobileNo'] as String,
