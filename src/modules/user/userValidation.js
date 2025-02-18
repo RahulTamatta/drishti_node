@@ -37,6 +37,12 @@ const updateLocationV = {
     location: Joi.string().required(),
   }),
 };
+const searchTeacherV = {
+  query: Joi.object().keys({
+    userName: Joi.string().allow('').optional(),
+  }),
+};
+
 
 const updateSocialMediaLinksV = {
   body: Joi.object().keys({
@@ -68,6 +74,19 @@ const teachersListingV = {
   }),
 };
 
+const addressSchema = Joi.object({
+  title: Joi.string().required(),
+  address: Joi.string().required(),
+  city: Joi.string().allow('', null),
+  state: Joi.string().allow('', null),
+  country: Joi.string().allow('', null),
+  pin: Joi.string().allow('', null),
+  latlong: Joi.object({
+    coordinates: Joi.array().items(Joi.number()).length(2)
+  }).required(),
+  userId: Joi.string().required()
+});
+
 module.exports = {
   updateLocationV,
   onBoardUserV,
@@ -75,4 +94,6 @@ module.exports = {
   actionOnTeacherAccountV,
   teachersListingV,
   updateSocialMediaLinksV,
+  searchTeacherV,
+  addressSchema
 };

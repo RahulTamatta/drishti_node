@@ -37,11 +37,13 @@ const {
   onBoardUserV,
   teachersListingV,
   updateSocialMediaLinksV,
+  addressSchema // Import addressSchema from userValidation
 } = require("./userValidation");
 
 const {
   userLoginController,
   updateLocationController,
+  searchTeachersController,
   onBoardUserController,
   addFiles,
   addTeacherRole,
@@ -59,8 +61,7 @@ const {
   getUser // Import getUser from userController
 } = require("./userController");
 
-// Remove this line as we're already importing searchUsers from userController
-// const { searchUsers } = require("./userService");
+const { createAddressController } = require('../address/addressController'); // Import createAddressController from addressController
 
 const { ROLES } = require("../../common/utils/constants");
 const auth = require("../../middleware/authentication");
@@ -100,6 +101,10 @@ router
   .put([auth(ROLES.ALL), validate(updateLocationV)], updateLocationController)
   .all(methodNotAllowed);
 
+  router
+  .route('/search-teacher')
+  .get(auth(ROLES.ALL), searchTeachersController)
+  .all(methodNotAllowed);
 router
   .route("/upload")
   .post(auth(ROLES.ALL), fileUpload, addFiles)
@@ -159,31 +164,10 @@ router.route("/nearUser")
   .post(getNearbyVisible)
   .all(methodNotAllowed);
 
-// router
-//   .route("/search-user")
-//   .get(async (req, res) => {
-//     try {
-//       const { userName } = req.query;
-      
-//       if (!userName && userName !== '') {
-//         return createResponse(res, httpStatus.BAD_REQUEST, "Username parameter is required");
-//       }
-
-//       const users = await searchUsers(userName);
-//       return createResponse(res, httpStatus.OK, "Users found", {
-//         message: users.length > 0 ? "Users found" : "No users found",
-//         data: users
-//       });
-
-//     } catch (error) {
-//       console.error("Search user error:", error);
-//       return createResponse(
-//         res, 
-//         error.status || httpStatus.INTERNAL_SERVER_ERROR,
-//         error.message || "Error searching users"
-//       );
-//     }
-//   })
-//   .all(methodNotAllowed);
+router.post(
+  '/create',
+  validate(addressSchema),
+  createAddressController
+);
 
 module.exports = router;

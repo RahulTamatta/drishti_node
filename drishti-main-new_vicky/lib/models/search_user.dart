@@ -156,7 +156,9 @@ class SearchTeacher {
         message: json["message"],
         data: json["data"] == null
             ? []
-            : List<TData>.from(json["data"]!.map((x) => TData.fromJson(x))),
+            : json["data"]["data"] == null
+                ? []
+                : List<TData>.from(json["data"]["data"].map((x) => TData.fromJson(x))),
       );
 
   Map<String, dynamic> toJson() => {
@@ -184,7 +186,7 @@ class TData {
         userName: json["userName"],
         email: json["email"],
         teacherId: json["teacherId"],
-        id: json["id"],
+        id: json["id"] ?? json["_id"]?.toString(),
       );
 
   Map<String, dynamic> toJson() => {

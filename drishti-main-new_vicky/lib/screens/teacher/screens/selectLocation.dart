@@ -159,51 +159,7 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              BlocProvider(
-                create: (_) => apiBloc,
-                child: BlocListener<ApiBloc, BlocState>(
-                  listener: (context, state) {
-                    if (state is Error) {
-                      showToast(
-                          text: state.message!,
-                          color: Colors.red,
-                          context: context);
-                    }
-                  },
-                  child: BlocBuilder<ApiBloc, BlocState>(
-                    builder: (context, state) {
-                      if (state is Initial) {
-                        return buildLoading();
-                      } else if (state is Loading) {
-                        return Container(child: buildLoading());
-                      } else if (state is Loaded) {
-                        dynamic add = state.data;
-                        print(add);
-
-                        if (add['message'] == 'address.ADDRESS_CREATED') {
-                          Get.back();
-                        }
-
-                        if (add['message'] == 'address.ADDRESS_DELETED') {
-                          api();
-                        }
-
-                        if (add['message'] == 'address.ADDRESSES_FOUND') {
-                          Address address = addressFromJson(add);
-
-                          return addressLayout(address);
-                        } else {
-                          return Container();
-                        }
-                      } else if (state is Error) {
-                        return Container();
-                      } else {
-                        return Container();
-                      }
-                    },
-                  ),
-                ),
-              )
+              bloc()
             ],
           ),
         ));
@@ -329,6 +285,54 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget bloc() {
+    return BlocProvider(
+      create: (_) => apiBloc,
+      child: BlocListener<ApiBloc, BlocState>(
+        listener: (context, state) {
+          if (state is Error && state.message != null) {
+            showToast(
+                text: state.message ?? 'Unknown error', // Provide a default value
+                color: Colors.red,
+                context: context);
+          }
+        },
+        child: BlocBuilder<ApiBloc, BlocState>(
+          builder: (context, state) {
+            if (state is Initial) {
+              return buildLoading();
+            } else if (state is Loading) {
+              return Container(child: buildLoading());
+            } else if (state is Loaded) {
+              dynamic add = state.data;
+              print(add);
+
+              if (add['message'] == 'address.ADDRESS_CREATED') {
+                Get.back();
+              }
+
+              if (add['message'] == 'address.ADDRESS_DELETED') {
+                api();
+              }
+
+              if (add['message'] == 'address.ADDRESSES_FOUND') {
+                Address address = addressFromJson(add);
+
+                return addressLayout(address);
+              } else {
+                return Container();
+              }
+            } else if (state is Error) {
+              return Container();
+            } else {
+              return Container();
+            }
+          },
+        ),
       ),
     );
   }

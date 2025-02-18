@@ -5,6 +5,16 @@ const httpStatus = require("../../common/utils/status.json");
 
 const createAddressController = async (request, response) => {
   try {
+    // Validate request body first
+    const { error, value } = addressSchema.validate(request.body);
+    
+    if (error) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        error.details[0].message
+      );
+    }
+
     const data = await addressService.createAddressService(request);
     if (!data) {
       throw new appError(
@@ -19,7 +29,12 @@ const createAddressController = async (request, response) => {
       data
     );
   } catch (error) {
-    createResponse(response, error.status, error.message);
+    console.error('Address creation error:', error);
+    createResponse(
+      response, 
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || request.t("address.UNABLE_TO_CREATE")
+    );
   }
 };
 

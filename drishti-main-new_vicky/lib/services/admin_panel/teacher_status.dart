@@ -27,7 +27,7 @@ class ApiService {
       );
       print(response);
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final List<dynamic> data = response.data['data'];
         return data.map((json) => TeachersDetails.fromJson(json)).toList();
       } else if (response.statusCode == 401) {
@@ -58,7 +58,11 @@ class ApiService {
       print("Token: $token");
 
       final response = await _dio.post(
-        '${ApiConstants.baseUrl}/user/action-teacher?status=accepted&id=$teacherId',
+        '${ApiConstants.baseUrl}/user/action-teacher',
+        data: {
+          'teacherId': teacherId,
+          'action': 'approve'
+        },
         options: Options(
           headers: {
             'Authorization': token,
@@ -67,16 +71,19 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
+        print('Teacher approved successfully: ${response.data}');
         return true;
       } else if (response.statusCode == 401) {
         throw Exception('Unauthorized: Please check your authentication');
       } else {
         throw Exception(
-            'Failed to approve teacher: $teacherId. Status code: ${response.statusCode}');
+            'Failed to approve teacher: ${response.data['message'] ?? 'Unknown error'}');
       }
     } on DioException catch (e) {
+      print('Error approving teacher: ${e.message}');
       throw Exception('Network error: ${e.message}');
     } catch (e) {
+      print('Unexpected error approving teacher: $e');
       throw Exception('Unexpected error: $e');
     }
   }
@@ -87,7 +94,11 @@ class ApiService {
       print("Token: $token");
 
       final response = await _dio.post(
-        'http://10.0.2.2:8080/user/action-teacher?status=reject&id=$teacherId',
+        '${ApiConstants.baseUrl}/user/action-teacher',
+        data: {
+          'teacherId': teacherId,
+          'action': 'suspend'
+        },
         options: Options(
           headers: {
             'Authorization': token,
@@ -96,6 +107,7 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
+        print('Teacher suspended successfully: ${response.data}');
         return true;
       } else if (response.statusCode == 401) {
         throw Exception('Unauthorized: Please check your authentication');

@@ -11,6 +11,9 @@ const constants = require("../../common/utils/constants");
 const sendSms = require("../../common/utils/messageService");
 const uploadFilesToBucket = require("../../middleware/uploadTofireBase"); // Adjust path
 const axios = require('axios');
+const mongoose = require('mongoose');
+const Address = require('../../models/address');
+
 function AddMinutesToDate(date, minutes) {
   return new Date(date.getTime() + minutes * 60000);
 }
@@ -645,27 +648,49 @@ async function getAllTeachers() {
 }
 
 async function actionOnTeacherAccount(request) {
-  let { status, id } = request.query;
+  const { teacherId, status, adminId } = request;
 
   try {
-    const user = await User.findById(id);
+    const user = await User.findById(teacherId);
     if (!user) {
       throw new appError(
         httpStatus.NOT_FOUND,
-        request.t("user.TEACHER_NOT_FOUND")
+        'Teacher not found'
       );
     }
 
-    return await User.findByIdAndUpdate(
-      id,
+    if (user.role !== constants.ROLES.TEACHER) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        'User is not a teacher'
+      );
+    }
+
+    // Validate the status
+    if (![constants.STATUS.ACCEPTED, constants.STATUS.REJECTED].includes(status)) {
+      throw new appError(
+        httpStatus.BAD_REQUEST,
+        'Invalid status. Must be either accepted or rejected'
+      );
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      teacherId,
       {
         teacherRoleApproved: status,
-        teacherRequestHandledBy: request.user.id,
+        teacherRequestHandledBy: adminId,
+        updatedAt: new Date()
       },
       { new: true }
-    );
+    ).populate('teacherRequestHandledBy', 'name email');
+
+    return updatedUser;
   } catch (error) {
-    throw new appError(error.status, error.message);
+    console.error('Error in actionOnTeacherAccount service:', error);
+    throw new appError(
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || 'Failed to update teacher status'
+    );
   }
 }
 
@@ -777,6 +802,43 @@ const searchUsers = async (username) => {
   }
 };
 
+const createAddressService = async (request) => {
+  try {
+    // Ensure userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(request.body.userId)) {
+      throw new appError(httpStatus.BAD_REQUEST, 'Invalid user ID');
+    }
+
+    const addressData = {
+      ...request.body,
+      latlong: {
+        type: 'Point',
+        coordinates: request.body.latlong.coordinates
+      }
+    };
+
+    const address = new Address(addressData);
+    const savedAddress = await address.save();
+
+    if (!savedAddress) {
+      throw new appError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Failed to save address'
+      );
+    }
+
+    return savedAddress;
+  } catch (error) {
+    if (error instanceof appError) {
+      throw error;
+    }
+    throw new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || 'Error creating address'
+    );
+  }
+};
+
 module.exports = {
   userLoginService,
   updateLocation,
@@ -795,5 +857,6 @@ module.exports = {
   generateToken,
   getSocialMedia,
   getNearbyVisibleUsers,
-  searchUsers
+  searchUsers,
+  createAddressService
 };

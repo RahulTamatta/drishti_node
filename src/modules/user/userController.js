@@ -1,4 +1,5 @@
 const userService = require("../user/userService");
+const userValidation = require("../user/userValidation");
 const constants = require("../../common/utils/constants");
 const appError = require("../../common/utils/appError");
 const createResponse = require("../../common/utils/createResponse");
@@ -112,12 +113,9 @@ async function deleteFileFromUrl(url) {
   }
 }
 
+
 const userLoginController = async (request, response) => {
   try {
-    const { error } = userValidation.validateLogin(request.body);
-    if (error) {
-      return response.status(422).json({ message: error.details[0].message });
-    }
     console.log("Login request body:", request.body);
     
     const data = await userService.userLoginService(request);
@@ -146,6 +144,7 @@ const userLoginController = async (request, response) => {
   }
 };
 
+
 const updateLocationController = async (req, res) => {
   try {
     // Implement location update logic
@@ -158,6 +157,52 @@ const updateLocationController = async (req, res) => {
     );
   }
 };
+
+
+const searchTeachersController = async (req, res) => {
+  try {
+    const { userName } = req.query;
+    console.log('Searching for teachers with query:', userName);
+
+    const query = {
+      role: constants.ROLES.TEACHER,
+      isOnboarded: true
+    };
+
+    if (userName) {
+      query.$or = [
+        { userName: { $regex: userName, $options: 'i' } },
+        { name: { $regex: userName, $options: 'i' } }
+      ];
+    }
+
+    const teachers = await User.find(query)
+      .select('_id userName email teacherId name profileImage')
+      .limit(20)
+      .lean()
+      .then(docs => docs.map(doc => ({
+        ...doc,
+        id: doc._id,
+        _id: undefined
+      })));
+
+    return createResponse(
+      res,
+      httpStatus.OK,
+      "Teachers found successfully",
+      { data: teachers }
+    );
+  } catch (error) {
+    console.error('Search teachers error:', error);
+    return createResponse(
+      res,
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || "Failed to search teachers"
+    );
+  }
+};
+
+
 
 const onBoardUserController = async (req, res) => {
   try {
@@ -280,13 +325,35 @@ const getAllTeachers = async (req, res) => {
 
 const actionOnTeacherAccount = async (req, res) => {
   try {
-    // Implement teacher account action logic
-    return createResponse(res, httpStatus.OK, "Action completed successfully");
+    const { teacherId, action } = req.body;
+    
+    if (!teacherId || !action) {
+      throw new appError(httpStatus.BAD_REQUEST, 'Teacher ID and action are required');
+    }
+
+    if (!['approve', 'suspend'].includes(action)) {
+      throw new appError(httpStatus.BAD_REQUEST, 'Invalid action. Must be either approve or suspend');
+    }
+
+    const status = action === 'approve' ? constants.STATUS.ACCEPTED : constants.STATUS.REJECTED;
+    const result = await userService.actionOnTeacherAccount({ 
+      teacherId, 
+      status,
+      adminId: req.user._id // Add admin ID who performed the action
+    });
+
+    return createResponse(
+      res,
+      httpStatus.OK,
+      `Teacher ${action === 'approve' ? 'approved' : 'suspended'} successfully`,
+      result
+    );
   } catch (error) {
+    console.error('Error in actionOnTeacherAccount:', error);
     return createResponse(
       res,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Action failed"
+      error.message || `Failed to ${req.body.action} teacher`
     );
   }
 };
@@ -370,10 +437,11 @@ const getTeachersRequest = async (req, res) => {
   try {
     const requests = await User.find({ 
       role: ROLES.TEACHER, 
-      status: 'pending' 
+      teacherRoleApproved: 'pending'
     }).select('-password');
     return createResponse(res, httpStatus.OK, "Teacher requests retrieved", requests);
   } catch (error) {
+    console.error('Error in getTeachersRequest:', error);
     return createResponse(
       res,
       error.status || httpStatus.INTERNAL_SERVER_ERROR,
@@ -563,6 +631,7 @@ async function getUser(request, response) {
 module.exports = {
   userLoginController,
   updateLocationController,
+  searchTeachersController,
   onBoardUserController,
   addFiles,
   addTeacherRole,

@@ -66,7 +66,9 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
         listener: (context, state) {
           if (state is Error) {
             showToast(
-                text: state.message!, color: Colors.red, context: context);
+                text: state.message ?? 'An error occurred', // Replace state.message!
+                color: Colors.red,
+                context: context);
           }
         },
         child: BlocBuilder<ApiBloc, BlocState>(
@@ -145,7 +147,7 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
               );
             } else if (state is TeacherError) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message)),
+                SnackBar(content: Text(state.message ?? 'An error occurred')),
               );
             }
           },
@@ -155,7 +157,7 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
             } else if (state is TeacherLoaded) {
               return _buildTeacherList(context, state.teachers);
             } else if (state is TeacherError) {
-              return Center(child: Text('Error: ${state.message}'));
+              return Center(child: Text('Error: ${state.message ?? 'An error occurred'}'));
             }
             return const SizedBox.shrink();
           },
@@ -217,7 +219,10 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
                           image: NetworkImage(teacher.profileImage!),
                           fit: BoxFit.cover,
                         )
-                      : null,
+                      : const DecorationImage(
+                          image: AssetImage('assets/images/default_profile.png'),
+                          fit: BoxFit.cover,
+                        ),
                 ),
               ),
             ],
@@ -249,7 +254,10 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
                       image: NetworkImage(teacher.teacherIdCard!),
                       fit: BoxFit.cover,
                     )
-                  : null,
+                  : const DecorationImage(
+                      image: AssetImage('assets/images/default_id.png'),
+                      fit: BoxFit.cover,
+                    ),
             ),
           ),
           SizedBox(height: 20.sp),
@@ -260,7 +268,7 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
                   onTap: () {
                     context
                         .read<TeacherBloc>()
-                        .add(SuspendTeacher(teacher.sId!));
+                        .add(SuspendTeacher(teacher.sId ?? ''));
                   },
                   child: Container(
                     padding: EdgeInsets.symmetric(vertical: 12.sp),
@@ -289,7 +297,7 @@ class AdminPanelScreenState extends State<AdminPanelScreen> {
                   onTap: () {
                     context
                         .read<TeacherBloc>()
-                        .add(ApproveTeacher(teacher.sId!));
+                        .add(ApproveTeacher(teacher.sId ?? ''));
                   },
                   child: const CommonContainerButton(labelText: "Accept"),
                 ),
