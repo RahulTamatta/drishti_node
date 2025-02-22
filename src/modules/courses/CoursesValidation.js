@@ -28,7 +28,13 @@ const createEventV = {
       }),
     }),
     timeOffset: Joi.string(),
-    duration: Joi.array().items(Joi.string()),
+    duration: Joi.array().items(Joi.object({
+      from: Joi.string().required(),
+      to: Joi.string().required()
+    })).required().messages({
+      "array.base": "Duration must be an array",
+      "any.required": "Duration is required"
+    }),
     meetingLink: Joi.string().trim(),
     recurring: Joi.boolean(),
     description: Joi.array().items(Joi.string()),

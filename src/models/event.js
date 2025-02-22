@@ -17,16 +17,23 @@ const eventSchema = new mongoose.Schema(
     timeOffset: String,
     duration: [
       {
-        from: { type: String, enum: TIME_INTERVALS },
-        to: { type: String, enum: TIME_INTERVALS },
+        from: { 
+          type: String, 
+          required: true,
+          enum: TIME_INTERVALS 
+        },
+        to: { 
+          type: String,
+          required: true, 
+          enum: TIME_INTERVALS 
+        },
       },
     ],
     meetingLink: { type: String, trim: true },
     recurring: Boolean,
     description: String,
     address: [],
- // In the Event model schema
-phoneNumber: [{ type: String }], // Changed from String to array of strings
+    phoneNumber: [{ type: String }],
     registrationLink: String,
     location: {
       type: { type: String, enum: ["Point"], default: "Point" },

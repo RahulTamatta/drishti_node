@@ -12,13 +12,31 @@ const { distortCoordinates } = require('../../common/utils/helpers');
 
 // working
 async function createEvent(request) {
-  const { coordinates, ...remainingBody } = request.body;
-  return await Event.create({
-    userId: request.user.id,
-    ...remainingBody,
-    "location.coordinates": coordinates,
-  });
+  try {
+    const eventData = request.body;
+    
+    // Ensure duration is properly formatted
+    if (!eventData.duration) {
+      eventData.duration = [];
+    }
+
+    // Create new event
+    const event = new Event({
+      ...eventData,
+      userId: request.user.id
+    });
+
+    await event.save();
+    return event;
+  } catch (error) {
+    console.error('Error creating event:', error);
+    throw new appError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || 'Failed to create event'
+    );
+  }
 }
+
 // working
 async function editEvent(request) {
   const { coordinates, ...remainingBody } = request.body;

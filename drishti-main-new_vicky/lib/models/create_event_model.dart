@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class CreateEventModel {
   String? mode;
   List<String>? aol;
@@ -5,6 +7,8 @@ class CreateEventModel {
   EventDateTime? date;
   bool? recurring;
   String? durationFrom;
+  List<Map<String, String>>? duration;
+  
   String? durationTo;
   String? timeTitle;
   String? timeOffset;
@@ -47,25 +51,37 @@ class CreateEventModel {
     timeOffset = json['timeOffset'];
     meetingLink = json['meetingLink'];
     phoneNumber = json['phoneNumber'] != null ? [json['phoneNumber']] : null;
-    address = json['address'] != null ? List<String>.from(json['address']) : null;
+    address =
+        json['address'] != null ? List<String>.from(json['address']) : null;
     description = json['description'];
     registrationLink = json['registrationLink'];
-    coordinates = json['coordinates'] != null ? List<double>.from(json['coordinates']) : null;
-    teachers = json['teachers'] != null ? List<String>.from(json['teachers']) : null;
+    coordinates = json['coordinates'] != null
+        ? List<double>.from(json['coordinates'])
+        : null;
+    teachers =
+        json['teachers'] != null ? List<String>.from(json['teachers']) : null;
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = {};
-    
+    debugPrint('CreateEventModel: Converting to JSON');
+    final Map<String, dynamic> data = <String, dynamic>{};
+
+    // Add required fields
+    data['aol'] = aol ?? ['course'];
     if (mode != null) data['mode'] = mode;
-    if (aol != null && aol!.isNotEmpty) data['aol'] = aol;
     if (title != null && title!.isNotEmpty) data['title'] = title;
-    if (timeTitle != null) data['timeTitle'] = timeTitle;
     if (date != null) data['date'] = date!.toJson();
     if (recurring != null) data['recurring'] = recurring;
-    if (durationFrom != null) data['durationFrom'] = durationFrom;
-    if (durationTo != null) data['durationTo'] = durationTo;
-    if (timeOffset != null) data['timeOffset'] = timeOffset;
+
+    // Duration handling with time format validation
+    if (durationFrom != null && durationTo != null) {
+      data['duration'] = [{
+        'from': _formatTime(durationFrom!),
+        'to': _formatTime(durationTo!)
+      }];
+    }
+
+    // Add optional fields
     if (meetingLink != null) data['meetingLink'] = meetingLink;
     if (phoneNumber != null && phoneNumber!.isNotEmpty) {
       data['phoneNumber'] = phoneNumber![0];
@@ -73,10 +89,31 @@ class CreateEventModel {
     if (address != null && address!.isNotEmpty) data['address'] = address;
     if (description != null) data['description'] = description;
     if (registrationLink != null) data['registrationLink'] = registrationLink;
-    if (coordinates != null && coordinates!.isNotEmpty) data['coordinates'] = coordinates;
+    if (coordinates != null && coordinates!.isNotEmpty) {
+      data['coordinates'] = coordinates;
+    }
     if (teachers != null && teachers!.isNotEmpty) data['teachers'] = teachers;
-    
+
+    debugPrint('Final JSON data: $data');
     return data;
+  }
+
+  // Helper method to format time strings
+  String _formatTime(String time) {
+    final RegExp exp = RegExp(r'(\d{1,2}):(\d{2})(AM|PM)');
+    final match = exp.firstMatch(time);
+    
+    if (match != null) {
+      var hour = int.parse(match.group(1)!);
+      final minute = match.group(2)!;
+      final period = match.group(3);
+      
+      if (period == 'PM' && hour < 12) hour += 12;
+      if (period == 'AM' && hour == 12) hour = 0;
+      
+      return '${hour.toString().padLeft(2, '0')}:$minute';
+    }
+    return time;
   }
 
   CreateEventModel copyWith({

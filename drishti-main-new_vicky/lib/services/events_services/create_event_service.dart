@@ -11,61 +11,57 @@ class CreateEventService {
   CreateEventService({http.Client? httpClient})
       : client = httpClient ?? http.Client();
 
-  Future<bool> createEvent(
-      CreateEventModel model, String? edit, String? eventId) async {
-    String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
-    if (token == null) {
-      throw Exception("Authorization token not found");
-    }
+  Future<bool> createEvent({
+    required CreateEventModel event,
+    required String token,
+    String? eventId,
+    String? edit,
+  }) async {
+    debugPrint('CreateEventService: Starting event creation');
 
-    final url = edit == "edit" && eventId != null
-        ? "${ApiConstants.baseUrl}/event/edit/$eventId"
-        : "${ApiConstants.baseUrl}/event/create";
-    
     try {
-      // Prepare request body
-      final Map<String, dynamic> eventData = {
-        "mode": model.mode,
-        "aol": model.aol,
-        "title": model.title,
-        "timeTitle": model.timeTitle,
-        "date": model.date?.toJson(),
-        "recurring": model.recurring ?? false,
-        "durationFrom": model.durationFrom,
-        "durationTo": model.durationTo,
-        "timeOffset": model.timeOffset,
-        "meetingLink": model.meetingLink,
-        "phoneNumber": model.phoneNumber?.isNotEmpty == true ? model.phoneNumber![0] : null,
-        "address": model.address,
-        "description": model.description,
-        "registrationLink": model.registrationLink,
-        "coordinates": model.coordinates,
-        "teachers": model.teachers,
-      };
+      final jsonData = event.toJson();
+      
+      // Ensure duration is included in request
+      if (!jsonData.containsKey('duration')) {
+        throw Exception('duration is required');
+      }
 
-      // Remove null values and empty lists
-      eventData.removeWhere((key, value) => 
-        value == null || 
-        (value is List && value.isEmpty) ||
-        (value is Map && value.isEmpty));
+      debugPrint('Event Model: $jsonData');
+      debugPrint('Edit mode: $edit, EventId: $eventId');
 
-      final response = await client.post(
+      final String url = '${ApiConstants.baseUrl}/event/create';
+      debugPrint('CreateEventService: Using API URL: $url');
+
+      // Remove durationFrom and durationTo from request since we use duration array
+      jsonData.remove('durationFrom');
+      jsonData.remove('durationTo');
+      
+      debugPrint('CreateEventService: Request Body: ${json.encode(jsonData)}');
+      debugPrint('Token  yo $token');
+
+      final response = await http.post(
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
+          'Authorization': token,
         },
-        body: json.encode(eventData),
+        body: json.encode(jsonData),
       );
+
+      debugPrint('CreateEventService: API Response Status Code: ${response.statusCode}');
+      debugPrint('CreateEventService: API Response Body: ${response.body}');
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return true;
       } else {
-        final errorBody = json.decode(response.body);
-        throw Exception(errorBody['message'] ?? 'Failed to create event');
+        final errorResponse = json.decode(response.body);
+        throw Exception(errorResponse['message'] ?? 'Failed to create event');
       }
-    } catch (e) {
-      throw Exception('Error creating event: ${e.toString()}');
+    } catch (e, stackTrace) {
+      debugPrint('CreateEventService: Error creating event: $e');
+      debugPrint('CreateEventService: Stack Trace: $stackTrace');
+      rethrow;
     }
   }
 }
