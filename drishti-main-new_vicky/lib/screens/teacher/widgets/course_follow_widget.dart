@@ -19,63 +19,72 @@ class CourseFollowupEventWidget extends StatefulWidget {
 }
 
 class CourseFollowupEventWidgetState extends State<CourseFollowupEventWidget> {
-  Option _selectedOption = Option.courses;
+  String? selectedAOL;
+
+  final List<String> aolTypes = ["event", "course", "follow-up", "wellness"];
 
   @override
   void initState() {
     if (widget.aol != null) {
-      _selectedOption = widget.aol![0] == "followup"
-          ? Option.followup
-          : widget.aol![0] == "events "
-              ? Option.events
-              : Option.courses;
+      selectedAOL = widget.aol![0];
     }
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    final CreateEventProvider createEventProvider =
-        Provider.of<CreateEventProvider>(context, listen: false);
-    return Row(
-      children: [
-        _containerWidget(Option.courses, "Courses", createEventProvider),
-        _containerWidget(Option.followup, "Follow up", createEventProvider),
-        _containerWidget(Option.events, "Events", createEventProvider),
-      ],
-    );
-  }
+    final createEventProvider = Provider.of<CreateEventProvider>(context);
 
-  Widget _containerWidget(
-      Option option, String text, CreateEventProvider createEventProvider) {
-    bool isSelected = _selectedOption == option;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          createEventProvider.createEventModel.aol = [text.toString()];
-          _selectedOption = option;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(15.sp),
-          border: Border.all(color: Colors.grey.withOpacity(0.5)),
-          color: isSelected ? AppColors.primaryColor : Colors.grey.shade100,
-        ),
-        margin: const EdgeInsets.only(right: 10),
-        alignment: Alignment.center,
-        child: Text(
-          text,
-          style: GoogleFonts.poppins(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Select Event Type *", // Added asterisk to indicate required field
+          style: GoogleFonts.manrope(
             textStyle: TextStyle(
-              color: isSelected ? Colors.white : Colors.black54,
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w400,
+              color: Colors.black,
+              fontSize: 15.sp,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
-      ),
+        SizedBox(height: 10.sp),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: aolTypes.map((type) {
+            bool isSelected = selectedAOL == type;
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedAOL = type;
+                  // Update the provider with the selected AOL type
+                  createEventProvider.updateAol([type]);
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.sp, vertical: 8.sp),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.primaryColor : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? AppColors.primaryColor : Colors.grey.shade300,
+                  ),
+                ),
+                child: Text(
+                  type.toUpperCase(),
+                  style: GoogleFonts.manrope(
+                    textStyle: TextStyle(
+                      color: isSelected ? Colors.white : Colors.black,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

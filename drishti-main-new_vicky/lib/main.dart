@@ -145,7 +145,7 @@ void main() async {
         durationTo: null,
         timeOffset: null,
         meetingLink: null,
-        phoneNumber: [],
+        phoneNumber: null,
         address: [],
         description: null,
         registrationLink: null,

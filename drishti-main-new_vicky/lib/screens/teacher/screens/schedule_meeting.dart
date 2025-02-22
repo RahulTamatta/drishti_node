@@ -88,6 +88,17 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
 
 void _submitForm(CreateEventProvider createEventProvider, BuildContext mcontext) async {
+    // Validate AOL first
+    if (createEventProvider.createEventModel.aol == null || 
+        createEventProvider.createEventModel.aol!.isEmpty) {
+      showToast(
+        text: "Please select an event type",
+        color: Colors.red,
+        context: mcontext,
+      );
+      return;
+    }
+
     final addressProvider = Provider.of<AddressProvider>(context, listen: false);
     final lat = addressProvider.latitude;
     final lng = addressProvider.longitude;
@@ -111,7 +122,7 @@ void _submitForm(CreateEventProvider createEventProvider, BuildContext mcontext)
       return;
     }
 
-    // Filter out empty phone numbers
+    // Get the first non-empty phone number
     String? phoneNumber = _phoneNumberControllers
         .map((controller) => controller.text.trim())
         .where((number) => number.isNotEmpty)
@@ -129,11 +140,18 @@ void _submitForm(CreateEventProvider createEventProvider, BuildContext mcontext)
     try {
       // Update event model with validated data
       createEventProvider.createEventModel.mode = _selectedOption.map((option) => option.name).join(',');
+      
+      // Make sure we have an AOL value
+      if (createEventProvider.createEventModel.aol == null || 
+          createEventProvider.createEventModel.aol!.isEmpty) {
+        throw Exception("Event type (AOL) is required");
+      }
+
       createEventProvider.createEventModel.meetingLink = _selectedOption.contains(OfflineOnlineOption.online) ? _meetingIDController.text : null;
       createEventProvider.createEventModel.description = _descriptionController.text;
       createEventProvider.createEventModel.registrationLink = _registrationLinkController.text;
       createEventProvider.createEventModel.teachers = addedTeachers;
-      createEventProvider.createEventModel.phoneNumber = [phoneNumber];
+      createEventProvider.createEventModel.phoneNumber = phoneNumber;
       createEventProvider.createEventModel.address = [_locationUrlController.text];
 
       // Only include coordinates if location is provided

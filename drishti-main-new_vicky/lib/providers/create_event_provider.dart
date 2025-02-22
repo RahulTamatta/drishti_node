@@ -20,8 +20,10 @@ class CreateEventProvider extends ChangeNotifier {
   }
 
   void updateAol(List<String> aol) {
-    _createEventModel = _createEventModel.copyWith(aol: aol);
-    notifyListeners();
+    if (aol.isNotEmpty) {
+      _createEventModel = _createEventModel.copyWith(aol: aol);
+      notifyListeners();
+    }
   }
 
   void updateTitle(List<String> title) {
@@ -54,7 +56,7 @@ class CreateEventProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updatePhoneNumber(List<String> phoneNumber) {
+  void updatePhoneNumber(String phoneNumber) {
     _createEventModel = _createEventModel.copyWith(phoneNumber: phoneNumber);
     notifyListeners();
   }

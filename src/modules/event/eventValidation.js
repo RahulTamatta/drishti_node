@@ -8,7 +8,7 @@ const createEventV = {
       "string.empty": "Title is required",
       "any.required": "Title is required",
     }),
-    mode: Joi.string().valid("online", "offline", "both").required().messages({
+    mode: Joi.string().valid("online", "offline").required().messages({
       "any.only": 'Mode must be one of "online", "offline", or "both"',
       "any.required": "Mode is required",
     }),
@@ -28,24 +28,25 @@ const createEventV = {
         "date.base": 'Date "to" must be a valid date',
         "any.required": 'Date "to" is required',
       }),
-    }),
-    timeOffset: Joi.string(),
+    }).required(),
+    timeOffset: Joi.string().required(),
     duration: Joi.array().items(
       Joi.object({
-        from: Joi.string().valid(...constants.TIME_INTERVALS),
-        to: Joi.string().valid(...constants.TIME_INTERVALS),
+        from: Joi.string().valid(...constants.TIME_INTERVALS).required(),
+        to: Joi.string().valid(...constants.TIME_INTERVALS).required(),
       })
-    ),
+    ).required(),
     meetingLink: Joi.string().trim(),
-    recurring: Joi.boolean(),
-    title: Joi.array().items(Joi.string()),
-    address: Joi.array().items(Joi.string()),
-    phoneNumber: Joi.string(),
+    recurring: Joi.boolean().required(),
+    title: Joi.array().items(Joi.string()).required(),
+    address: Joi.array().items(Joi.string()).required(),
+    phoneNumber: Joi.array().items(Joi.string()).required(),
     registrationLink: Joi.string(),
-
-    coordinates: Joi.array().items(Joi.number()).length(2),
-
-    teachers: Joi.array().items(Joi.string()),
+    location: Joi.object({
+      type: Joi.string().valid('Point').required(),
+      coordinates: Joi.array().items(Joi.number()).length(2).required()
+    }).required(),
+    teachers: Joi.array().items(Joi.string()).required(),
     deletedAt: Joi.date(),
   }),
 };
