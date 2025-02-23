@@ -139,12 +139,24 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     var width = MediaQuery.of(context).size.height;
-    DateTime dateTime = widget.event!.dateFrom!;
-    String formattedDate = DateFormat('yyyy-MM-dd').format(dateTime);
+    final event = widget.event;
+    
+    // Early return if event is null
+    if (event == null) {
+      return const Scaffold(
+        body: Center(child: Text('No event data available')),
+      );
+    }
 
-    Duration timeLeft =
-        calculateTimeLeft(widget.event?.dateFrom.toString() ?? '');
+    // Safe date formatting with null check
+    String formattedDate = '';
+    if (event.dateFrom != null) {
+      formattedDate = DateFormat('yyyy-MM-dd').format(event.dateFrom!);
+    }
+
+    Duration timeLeft = calculateTimeLeft(event.dateFrom?.toString() ?? DateTime.now().toString());
     String formattedTimeLeft = formatDuration(timeLeft);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -189,9 +201,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
           children: [
             courseDetailsCard(
               width: width,
-              courseName: '${widget.event?.title![0]}',
+              courseName: event.title?.isNotEmpty == true ? event.title![0] : 'No Title',
               courseDate: formattedDate,
-              coursetime: '${widget.event?.durationFrom}',
+              coursetime: event.durationFrom ?? 'TBD',
               courseStartsIn: formattedTimeLeft,
               courseMode: '',
             ),
@@ -208,16 +220,15 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 ),
               ),
             ),
-            if (widget.event?.teachersDetails?.isNotEmpty ?? false)
+            if (event.teachersDetails?.isNotEmpty ?? false)
               SizedBox(
                 height: 100.0.sp,
                 child: ListView.builder(
                   padding: const EdgeInsets.only(left: 12),
                   scrollDirection: Axis.horizontal,
-                  itemCount: widget.event?.teachersDetails!.length == null
-                      ? 0
-                      : widget.event!.teachers!.length,
+                  itemCount: event.teachersDetails?.length ?? 0,
                   itemBuilder: (context, index) {
+                    final teacher = event.teachersDetails![index];
                     return InkWell(
                       onTap: () {},
                       child: Column(
@@ -239,18 +250,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                     ),
                                   ),
                                 ),
-                                widget.event!.teachersDetails![index]
-                                        .profileImage!.isNotEmpty
+                                teacher.profileImage?.isNotEmpty == true
                                     ? ClipOval(
                                         child: Image(
-                                        image: NetworkImage(widget
-                                            .event!
-                                            .teachersDetails![index]
-                                            .profileImage!),
-                                        width: 60.0,
-                                        height: 60.0,
-                                        fit: BoxFit.cover,
-                                      ))
+                                          image: NetworkImage(teacher.profileImage!),
+                                          width: 60.0,
+                                          height: 60.0,
+                                          fit: BoxFit.cover,
+                                        ))
                                     : ClipOval(
                                         child: Image.asset(
                                           'assets/images/user.png',
@@ -263,7 +270,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                             ),
                           ),
                           Text(
-                            "${widget.event!.teachersDetails![index].name!.isNotEmpty ? widget.event!.teachersDetails![index].name : ''}",
+                            teacher.name?.isNotEmpty == true ? teacher.name! : 'Unknown',
                             style: GoogleFonts.lato(
                               textStyle: TextStyle(
                                   overflow: TextOverflow.ellipsis,
@@ -695,6 +702,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
   }
 
   _notifyButton(isNotified) {
+    // Add null check for event and notifyTo
+    final bool isUserNotified = widget.event?.notifyTo?.contains(widget.userID) ?? false;
+    
     return Container(
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
@@ -713,7 +723,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               ),
             ),
             TextSpan(
-              text: " Notify Me",
+              text: isUserNotified ? " Notified" : " Notify Me",
               style: GoogleFonts.poppins(
                 textStyle: TextStyle(
                     color: Colors.white,
