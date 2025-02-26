@@ -2,12 +2,11 @@ const addressService = require("../address/addressService");
 const appError = require("../../common/utils/appError");
 const createResponse = require("../../common/utils/createResponse");
 const httpStatus = require("../../common/utils/status.json");
-const { addressCreateV } = require("../address/addressValidation");
 
 const createAddressController = async (request, response) => {
   try {
     // Validate request body first
-    const { error, value } = addressCreateV.body.validate(request.body);
+    const { error, value } = addressSchema.validate(request.body);
     
     if (error) {
       throw new appError(
@@ -30,9 +29,15 @@ const createAddressController = async (request, response) => {
       data
     );
   } catch (error) {
-    createResponse(response, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message);
+    console.error('Address creation error:', error);
+    createResponse(
+      response, 
+      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      error.message || request.t("address.UNABLE_TO_CREATE")
+    );
   }
 };
+
 const getNearbyVisibleUser = async (request, response) => {
   const { longitude, latitude, radius } = request.body;
 
@@ -57,12 +62,16 @@ const getNearbyVisibleUser = async (request, response) => {
 const getAllAddressesByUserIdController = async (req, res) => {
   try {
     const data = await addressService.getAllAddressesByUserIdService(req);
-    
+
+    if (!data) {
+      throw new appError(httpStatus.NOT_FOUND, req.t("address.NO_ADDRESSES_FOUND"));
+    }
+
     createResponse(
       res,
       httpStatus.OK,
-      data ? req.t("address.ADDRESSES_FOUND") : req.t("address.NO_ADDRESSES_FOUND"),
-      data || []
+      req.t("address.ADDRESSES_FOUND"),
+      data
     );
   } catch (error) {
     createResponse(res, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message);
@@ -118,3 +127,4 @@ module.exports = {
   getAllAddressesByUserIdController,
   getNearbyVisibleUser
 };
+

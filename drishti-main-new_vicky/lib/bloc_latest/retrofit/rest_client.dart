@@ -68,16 +68,16 @@ abstract class RestClient {
   @DELETE("/address/delete/{id}")
   Future<dynamic> deleteAddress(@Path() dynamic id);
 
-  @PATCH("http://10.0.2.2:8080/user/address/edit/{id}")
+  @PATCH("/address/edit/{id}")
   Future<dynamic> editAddress(@Path() dynamic id, @Body() dynamic add);
 
-  @GET("http://10.0.2.2:8080/user//address/{id}")
+  @GET("/address/user/{id}")
   Future<dynamic> getAllAddress(@Path() dynamic id);
 
-  @PUT("http://10.0.2.2:8080/user/location")
+  @PUT("/user/location")
   Future<dynamic> updateUserLocation(@Body() dynamic body, dynamic header);
 
-  @GET("http://10.0.2.2:8080/user/notifyme/{id}")
+  @GET("/notifyme/{id}")
   Future<dynamic> getNotificationByID(@Path() dynamic id, dynamic token);
 
   @GET("/user/search-user")

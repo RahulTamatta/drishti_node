@@ -804,67 +804,37 @@ const searchUsers = async (username) => {
 
 const createAddressService = async (request) => {
   try {
-    const { title, address, city, state, country, pin, latlong, userId } = request.body;
-
-    // Validate required fields
-    if (!address || !userId || !latlong) {
-      throw new appError(httpStatus.BAD_REQUEST, 'Address, userId and coordinates are required');
-    }
-
-    // Validate latlong format
-    if (!latlong.coordinates || !Array.isArray(latlong.coordinates) || latlong.coordinates.length !== 2) {
-      throw new appError(httpStatus.BAD_REQUEST, 'Invalid coordinates format');
-    }
-
-    // Ensure userId is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+    // Ensure userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(request.body.userId)) {
       throw new appError(httpStatus.BAD_REQUEST, 'Invalid user ID');
     }
 
-    // Create GeoJSON point
-    const point = {
-      type: 'Point',
-      coordinates: [
-        parseFloat(latlong.coordinates[0]), // latitude
-        parseFloat(latlong.coordinates[1])  // longitude
-      ]
+    const addressData = {
+      ...request.body,
+      latlong: {
+        type: 'Point',
+        coordinates: request.body.latlong.coordinates
+      }
     };
 
-    // Create new address document
-    const newAddress = new Address({
-      title: title || 'Home',
-      address,
-      city: city || '',
-      state: state || '',
-      country: country || 'India',
-      pin: pin || '',
-      userId,
-      location: point
-    });
-
-    // Save the address
-    const savedAddress = await newAddress.save();
+    const address = new Address(addressData);
+    const savedAddress = await address.save();
 
     if (!savedAddress) {
-      throw new appError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to save address');
+      throw new appError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Failed to save address'
+      );
     }
 
-    // Update user's address reference if needed
-    await User.findByIdAndUpdate(
-      userId,
-      { $addToSet: { addresses: savedAddress._id } },
-      { new: true }
-    );
-
-    return {
-      message: 'address.ADDRESS_CREATED',
-      data: savedAddress
-    };
+    return savedAddress;
   } catch (error) {
-    console.error('Create address error:', error);
-    throw error instanceof appError ? error : new appError(
+    if (error instanceof appError) {
+      throw error;
+    }
+    throw new appError(
       httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || 'Failed to create address'
+      error.message || 'Error creating address'
     );
   }
 };

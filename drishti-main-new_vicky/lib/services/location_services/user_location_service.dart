@@ -70,26 +70,6 @@ class LocationService {
       return result.isGranted;
     }
   }
-
-  static Future<List<String>> getStates(String country) async {
-    // Mock implementation, replace with actual API call
-    await Future.delayed(Duration(seconds: 1));
-    return ['Bihar', 'Uttar Pradesh', 'West Bengal'];
-  }
-
-  static Future<List<String>> getCities(String state) async {
-    // Mock implementation, replace with actual API call
-    await Future.delayed(Duration(seconds: 1));
-    if (state == 'Bihar') {
-      return ['Patna', 'Gaya', 'Muzaffarpur', 'Bhagalpur'];
-    } else if (state == 'Uttar Pradesh') {
-      return ['Lucknow', 'Kanpur', 'Varanasi', 'Agra'];
-    } else if (state == 'West Bengal') {
-      return ['Kolkata', 'Howrah', 'Durgapur', 'Siliguri'];
-    } else {
-      return [];
-    }
-  }
 }
 
 // Custom exceptions

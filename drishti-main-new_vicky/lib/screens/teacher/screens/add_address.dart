@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../services/location_services/user_location_service.dart';
 
 class AddAddressScreen extends StatefulWidget {
   final AddressData? addressData;
@@ -20,50 +19,23 @@ class AddAddressScreen extends StatefulWidget {
 }
 
 class AddAddressScreenState extends State<AddAddressScreen> {
-  String selectedCountry = '';
-  String selectedCity = '';
-  String selectedState = '';
-  String title = '';
+  String selectedCountry = 'India';
+  String selectedCity = 'Patna';
+  String selectedState = 'Bihar';
+  String title = 'Home';
   TextEditingController addressController = TextEditingController();
   TextEditingController pincodeController = TextEditingController();
-  List<String> cities = [];
-  List<String> states = [];
-  bool isLoadingCities = false;
-  bool isLoadingStates = false;
 
   @override
   void initState() {
     super.initState();
-    // Check if addressData exists and has an id before accessing its properties
-    if (widget.addressData != null && widget.addressData!.id.isNotEmpty) {
+    if (widget.addressData!.id.isNotEmpty) {
       addressController.text = widget.addressData!.address;
       pincodeController.text = widget.addressData!.pin;
       selectedCountry = widget.addressData!.country;
       selectedCity = widget.addressData!.city;
       selectedState = widget.addressData!.state;
-      title = widget.addressData!.title;
     }
-    fetchStates();
-  }
-
-  Future<void> fetchStates() async {
-    setState(() {
-      isLoadingStates = true;
-    });
-    states = await LocationService.getStates(selectedCountry);
-    setState(() {
-      isLoadingStates = false;
-    });
-  }
-
-  Future<void> fetchCities(String state) async {
-    setState(() {
-      isLoadingCities = true;
-    });
-    cities = await LocationService.getCities(state);
-    setState(() {
-      isLoadingCities = false;
-    });
   }
 
   //flutter bloc for hiting api
@@ -71,82 +43,69 @@ class AddAddressScreenState extends State<AddAddressScreen> {
 
   data(context) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+
     var userID = prefs.getString("UserID");
 
-    if (userID == null) {
-      showToast(
-          text: "User ID not found. Please login again.",
-          color: Colors.red,
-          context: context);
-      return;
+    Position position = await Geolocator.getCurrentPosition(
+        locationSettings: LocationSettings(accuracy: LocationAccuracy.high));
+
+    if (widget.addressData!.id.isNotEmpty) {
+      // object id should be send
+
+      apiBloc.add(EditAddress(id: widget.addressData!.id, add: {
+        "title": title,
+        "address": addressController.text,
+        "city": selectedCity,
+        "state": selectedState,
+        "country": selectedCountry,
+        "pin": pincodeController.text,
+        "location": {
+          "type": "Point",
+          "coordinates": [position.latitude, position.longitude]
+        },
+        "userId": userID
+      }));
+    } else {
+      apiBloc.add(CreateAddress(add: {
+        "title": title,
+        "address": addressController.text,
+        "city": selectedCity,
+        "state": selectedState,
+        "country": selectedCountry,
+        "pin": pincodeController.text,
+        "latlong": {
+          "coordinates": [position.latitude, position.longitude]
+        },
+        "userId": userID
+      }));
     }
 
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-          locationSettings:
-              const LocationSettings(accuracy: LocationAccuracy.high));
-
-      // Check if we're editing an existing address or creating a new one
-      if (widget.addressData != null && widget.addressData!.id.isNotEmpty) {
-        apiBloc.add(EditAddress(id: widget.addressData!.id, add: {
-          "title": title,
-          "address": addressController.text,
-          "city": selectedCity,
-          "state": selectedState,
-          "country": selectedCountry,
-          "pin": pincodeController.text,
-          "location": {
-            "type": "Point",
-            "coordinates": [position.longitude, position.latitude]
-          },
-          "userId": userID
-        }));
-      } else {
-        apiBloc.add(CreateAddress(add: {
-          "title": title,
-          "address": addressController.text,
-          "city": selectedCity,
-          "state": selectedState,
-          "country": selectedCountry,
-          "pin": pincodeController.text,
-          "latlong": {
-            "type": "Point",
-            "coordinates": [position.longitude, position.latitude]
-          },
-          "userId": userID
-        }));
-      }
-
-      showDialog(
-          barrierDismissible: false,
-          context: context,
-          builder: (BuildContext context) {
-            return PopScope(
-                canPop: false,
-                onPopInvokedWithResult: (bool didPop, Object? result) {
-                  Navigator.of(context).pop();
-                },
-                child: AlertDialog(
-                  shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(5.0))),
-                  content: Builder(
-                    builder: (context) {
-                      return SizedBox(
-                        height: 200,
-                        width: 200,
-                        child: bloc(),
-                      );
-                    },
-                  ),
-                  insetPadding: EdgeInsets.zero,
-                  contentPadding: EdgeInsets.zero,
-                  clipBehavior: Clip.antiAliasWithSaveLayer,
-                ));
-          });
-    } catch (e) {
-      showToast(
-          text: "Error: ${e.toString()}", color: Colors.red, context: context);
-    }
+    showDialog(
+        barrierDismissible: false,
+        context: context,
+        builder: (BuildContext context) {
+          return PopScope(
+              canPop: false, // prevent back
+              onPopInvokedWithResult: (bool didPop, Object? result) {
+                Navigator.of(context).pop();
+              },
+              child: AlertDialog(
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(5.0))),
+                content: Builder(
+                  builder: (context) {
+                    return SizedBox(
+                      height: 200,
+                      width: 200,
+                      child: bloc(),
+                    );
+                  },
+                ),
+                insetPadding: EdgeInsets.zero,
+                contentPadding: EdgeInsets.zero,
+                clipBehavior: Clip.antiAliasWithSaveLayer,
+              ));
+        });
   }
 
   Widget bloc() {
@@ -205,7 +164,7 @@ class AddAddressScreenState extends State<AddAddressScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DropdownButtonFormField<String>(
-              value: selectedCountry.isNotEmpty ? selectedCountry : null,
+              value: selectedCountry,
               decoration: InputDecoration(
                 labelText: 'Select Country',
                 border: OutlineInputBorder(
@@ -227,29 +186,7 @@ class AddAddressScreenState extends State<AddAddressScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: selectedState.isNotEmpty ? selectedState : null,
-              decoration: InputDecoration(
-                labelText: 'Select State',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onChanged: (String? newValue) {
-                setState(() {
-                  selectedState = newValue!;
-                  fetchCities(newValue);
-                });
-              },
-              items: states.map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: selectedCity.isNotEmpty ? selectedCity : null,
+              value: selectedCity,
               decoration: InputDecoration(
                 labelText: 'Select City',
                 border: OutlineInputBorder(
@@ -261,7 +198,30 @@ class AddAddressScreenState extends State<AddAddressScreen> {
                   selectedCity = newValue!;
                 });
               },
-              items: cities.map<DropdownMenuItem<String>>((String value) {
+              items: <String>['Patna']
+                  .map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: selectedState,
+              decoration: InputDecoration(
+                labelText: 'Select State',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onChanged: (String? newValue) {
+                setState(() {
+                  selectedState = newValue!;
+                });
+              },
+              items: <String>['Patna']
+                  .map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
                   value: value,
                   child: Text(value),

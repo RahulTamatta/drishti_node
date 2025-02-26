@@ -6,7 +6,7 @@ const httpStatus = require('../common/utils/status.json');
 const moment = require('moment');
 
 // Environment variables for token expiration and secret
-const JWT_ACCESS_EXPIRATION_MINUTES = 3 * 30 * 24 * 60; // 3 months in minutes
+const JWT_ACCESS_EXPIRATION_MINUTES = 30;
 const JWT_REFRESH_EXPIRATION_DAYS = 7;
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -23,9 +23,9 @@ const createToken = async (userId) => {
     const accessToken = jwt.sign(
       { id: userId, type: 'access' },
       process.env.JWT_SECRET,
-      { expiresIn: '90d' } // 90 days equals roughly 3 months
+      { expiresIn: `${process.env.JWT_ACCESS_EXPIRATION_MINUTES}m` }
     );
-    
+
     // Generate refresh token
     const refreshToken = jwt.sign(
       { id: userId, type: 'refresh' },
@@ -35,7 +35,7 @@ const createToken = async (userId) => {
 
     // Calculate expiration times
     const accessExpiration = moment()
-      .add(3, 'months')
+      .add(process.env.JWT_ACCESS_EXPIRATION_MINUTES, 'minutes')
       .toISOString();
     const refreshExpiration = moment()
       .add(process.env.JWT_REFRESH_EXPIRATION_DAYS, 'days')

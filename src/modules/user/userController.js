@@ -628,6 +628,7 @@ async function getUser(request, response) {
   }
 }
 
+<<<<<<< HEAD
 const createAddressController = async (req, res) => {
   try {
     // Validate user authentication
@@ -721,6 +722,8 @@ createEvent = async (request, response) => {
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
 =======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
+>>>>>>> parent of 76a67dd0 (now address is saved propelry)
 module.exports = {
   userLoginController,
   updateLocationController,
@@ -739,6 +742,5 @@ module.exports = {
   getNearbyVisible,
   getSocialMediaController,
   searchUsers,
-  getUser,
-  createAddressController
+  getUser
 };
