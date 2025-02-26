@@ -1,31 +1,47 @@
-const multer = require("multer");
-const aws = require("aws-sdk");
-const multerS3 = require("multer-s3");
+const AWS = require('aws-sdk');
+const AppError = require('./appError');
+const httpStatus = require('./status.json');
 const config = require("../config/config");
 const path = require("path");
 
-const s3 = new aws.S3({
-  accessKeyId: config.aws.awsAccessKeyId,
-  secretAccessKey: config.aws.awsSecretAccessKey,
-  region: config.aws.awsRegion,
-});
-const uploadToS3 = multer({
-  storage: multerS3({
-    endpoint: `https://s3.${process.env.AWS_REGION}.amazonaws.com`,
-    s3ForcePathStyle: true,
-    s3: s3,
-    bucket: config.aws.s3Bucket,
-    cacheControl: "max-age=31536000",
-    acl: "public-read",
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: function (req, file, cb) {
-      const ext = path.extname(file.originalname);
-      const filename = path.basename(file.originalname, ext);
-      const timestamp = Date.now().toString();
-      cb(null, `${filename}-${timestamp}${ext}`);
-    },
-  }),
-});
+/**
+ * Uploads a file to AWS S3 bucket
+ * @param {Buffer} buffer - File buffer to upload
+ * @param {String} key - Key for the file in S3
+ * @param {String} mimeType - MIME type of the file
+ * @returns {Promise<Object>} Upload result
+ */
+const uploadToS3 = async (buffer, key, mimeType) => {
+  try {
+    // Configure AWS with environment variables instead of JWT
+    const s3 = new AWS.S3({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      region: process.env.AWS_REGION
+    });
+
+    // Set up the upload parameters
+    const params = {
+      Bucket: process.env.S3_BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: mimeType,
+      ACL: 'public-read'
+    };
+
+    // Upload to S3
+    const uploadResult = await s3.upload(params).promise();
+    console.log('File uploaded successfully:', uploadResult.Location);
+    
+    return uploadResult;
+  } catch (error) {
+    console.error('Error uploading file to S3:', error);
+    throw new AppError(
+      `File upload failed: ${error.message || error}`,
+      httpStatus.INTERNAL_SERVER_ERROR
+    );
+  }
+};
 
 const deleteFromS3 = async (fileName) => {
   const deleteParams = {
@@ -34,23 +50,5 @@ const deleteFromS3 = async (fileName) => {
   };
   await s3.deleteObject(deleteParams).promise();
 };
-// const uploadToS3 = multer({
-//   storage: multerS3({
-//     s3: s3,
-//     bucket: config.aws.s3Bucket,
-//     acl: "public-read",
-//     metadata: function (req, file, cb) {
-//       console.log("file", file);
-//       cb(null, { fieldName: file.fieldname });
-//     },
-//     key: function (req, file, cb) {
-//       console.log("key", file);
-//       cb(null, Date.now().toString());
-//     },
-//   }),
-// }).fields([
-//   { name: "teacherIdCard", maxCount: 1 },
-//   { name: "profileImageUrl", maxCount: 1 },
-// ]);
 
 module.exports = { uploadToS3, deleteFromS3 };

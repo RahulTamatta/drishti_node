@@ -289,138 +289,75 @@ const updateLocation = async (request) => {
 
 const uploadToFirebase = require('../../common/utils/uploadToFirebase');
 
-const onBoardUser = async (request) => {
+const onBoardUser = async (userId, userData, files) => {
   try {
-    console.log("onBoardUser called. Request body:", request.body);
-    console.log("onBoardUser called. Request files:", request.files);
-    console.log("onBoardUser called. Request user:", request.user);
-
-    if (!request.user || !request.user.id) {
-      throw new appError(httpStatus.UNAUTHORIZED, "Authentication required");
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new AppError("User not found", httpStatus.NOT_FOUND);
     }
 
-    const { 
-      name, 
-      email, 
-      userName,  // Changed from username to userName
-      mobileNo, 
-      bio, 
-      teacherId, 
-      role, 
-      youtubeUrl, 
-      xUrl, 
-      instagramUrl, 
-      nearByVisible, 
-      locationSharing 
-    } = request.body;
-
-    // Validate required fields
-    if (!userName || !name) {  // Changed from username to userName
-      throw new appError(httpStatus.BAD_REQUEST, "Username and name are required");
-    }
-
-    // Check for existing username/email
-    const existingUser = await User.findOne({
-      $and: [
-        { _id: { $ne: request.user.id } },
-        {
-          $or: [
-            { userName: userName },  // Changed from username to userName
-            { email: email ? email.toLowerCase() : null }
-          ]
-        }
-      ]
+    // Update user data fields
+    Object.keys(userData).forEach((key) => {
+      if (key !== 'files' && key !== 'teacherIdCard') {
+        user[key] = userData[key];
+      }
     });
 
-    if (existingUser) {
-      if (existingUser.userName === userName) {  // Changed from username to userName
-        throw new appError(httpStatus.CONFLICT, "Username already exists");
-      }
-      if (email && existingUser.email === email.toLowerCase()) {
-        throw new appError(httpStatus.CONFLICT, "Email already exists");
-      }
-    }
-
-    let profileImage = "";
-    let teacherIdCardUrl = "";
-
-    // Handle file uploads
-    if (request.files) {
+    // Handle profile image upload if provided
+    if (files && files.profileImage && files.profileImage[0]) {
       try {
-        // Handle profile image
-        if (request.files.profileImage && request.files.profileImage[0]) {
-          const profileImageFile = request.files.profileImage[0];
-          console.log('Uploading profile image:', profileImageFile.originalname);
-          profileImage = await uploadToFirebase(
-            profileImageFile.buffer,
-            `profiles/${request.user.id}/${Date.now()}_${profileImageFile.originalname}`,
-            profileImageFile.mimetype
-          );
-          console.log('Profile image uploaded:', profileImage);
-        }
-
-        // Handle teacher ID card
-        if (request.files.teacherIdCard && request.files.teacherIdCard[0]) {
-          const teacherIdFile = request.files.teacherIdCard[0];
-          console.log('Uploading teacher ID card:', teacherIdFile.originalname);
-          teacherIdCardUrl = await uploadToFirebase(
-            teacherIdFile.buffer,
-            `teacher_ids/${request.user.id}/${Date.now()}_${teacherIdFile.originalname}`,
-            teacherIdFile.mimetype
-          );
-          console.log('Teacher ID card uploaded:', teacherIdCardUrl);
-        }
-      } catch (fileError) {
-        console.error("File upload error:", fileError);
-        throw new appError(httpStatus.INTERNAL_SERVER_ERROR, "File upload failed: " + fileError.message);
+        const file = files.profileImage[0];
+        const key = `profiles/${userId}/${Date.now()}-${file.originalname}`;
+        
+        console.log('Uploading profile image to S3...');
+        const uploadResult = await uploadToS3(
+          file.buffer,
+          key,
+          file.mimetype
+        );
+        
+        user.profileImage = uploadResult.Location;
+        console.log('Profile image uploaded successfully');
+      } catch (uploadError) {
+        console.error('Profile image upload error:', uploadError);
+        // Continue with user update even if image upload fails
+        // This prevents blocking the entire onboarding process
       }
     }
 
-    // Prepare user data for update
-    const updateData = {
-      name,
-      userName,  // Changed from username to userName to match model
-      email: email ? email.toLowerCase() : undefined,
-      mobileNo,
-      bio,
-      role,
-      isOnboarded: true,
-      youtubeUrl,
-      xUrl,
-      instagramUrl,
-      nearByVisible: Boolean(nearByVisible),
-      locationSharing: Boolean(locationSharing)
-    };
-
-    // Add profile image if uploaded
-    if (profileImage) {
-      updateData.profileImage = profileImage;
-    }
-
-    // Add teacher-specific fields if role is teacher
-    if (role === 'teacher') {
-      updateData.teacherId = teacherId;
-      if (teacherIdCardUrl) {
-        updateData.teacherIdCard = teacherIdCardUrl;
+    // Handle teacher ID card upload if provided and user is a teacher
+    if (userData.role === 'TEACHER' && files && files.teacherIdCard && files.teacherIdCard[0]) {
+      try {
+        const file = files.teacherIdCard[0];
+        const key = `teachers/${userId}/${Date.now()}-${file.originalname}`;
+        
+        console.log('Uploading teacher ID card to S3...');
+        const uploadResult = await uploadToS3(
+          file.buffer,
+          key,
+          file.mimetype
+        );
+        
+        user.teacherIdCard = uploadResult.Location;
+        console.log('Teacher ID card uploaded successfully');
+      } catch (uploadError) {
+        console.error('Teacher ID card upload error:', uploadError);
+        throw new AppError(
+          "Teacher ID card upload failed. Please try again.",
+          httpStatus.INTERNAL_SERVER_ERROR
+        );
       }
-      updateData.teacherRoleApproved = 'pending';
     }
 
-    // Update user
-    const updatedUser = await User.findByIdAndUpdate(
-      request.user.id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedUser) {
-      throw new appError(httpStatus.NOT_FOUND, "User not found");
-    }
-
-    return updatedUser;
+    // Save the updated user
+    await user.save();
+    return user;
   } catch (error) {
-    console.error('onBoardUser Error:', error);
-    throw error instanceof appError ? error : new appError(httpStatus.INTERNAL_SERVER_ERROR, error.message || "Failed to onboard user");
+    console.error('onBoardUser error:', error);
+    throw new AppError(
+      error.message || "Failed to onboard user",
+      error.status || httpStatus.INTERNAL_SERVER_ERROR
+    );
   }
 };
 
