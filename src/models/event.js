@@ -25,26 +25,12 @@ const eventSchema = new mongoose.Schema(
     recurring: Boolean,
     description: String,
     address: [],
-    phoneNumber: [{ type: String }], // Changed from String to array of strings
+ // In the Event model schema
+phoneNumber: [{ type: String }], // Changed from String to array of strings
     registrationLink: String,
     location: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        required: true
-      },
-      coordinates: {
-        type: [Number],
-        required: true,
-        validate: {
-          validator: function(coords) {
-            return coords.length === 2 && 
-                   coords[0] >= -180 && coords[0] <= 180 && // longitude 
-                   coords[1] >= -90 && coords[1] <= 90;     // latitude
-          },
-          message: 'Invalid coordinates. Must be [longitude, latitude]'
-        }
-      }
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number], required: true },
     },
     teachers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     deletedAt: { type: mongoose.Schema.Types.Date },

@@ -132,10 +132,8 @@ class _EditMeetingScreenState extends State<EditMeetingScreen> {
     Position position = await Geolocator.getCurrentPosition(
         locationSettings: LocationSettings(accuracy: LocationAccuracy.high));
     if (_validateFields()) {
-      String phoneNumber = _phoneNumberControllers
-          .map((controller) => controller.text)
-          .where((number) => number.isNotEmpty)
-          .first;
+      List<String> phoneNumbers =
+          _phoneNumberControllers.map((controller) => controller.text).toList();
 
       createEventProvider.createEventModel.mode = _selectedOption.name;
       createEventProvider.createEventModel.meetingLink =
@@ -152,7 +150,7 @@ class _EditMeetingScreenState extends State<EditMeetingScreen> {
         position.latitude,
         position.longitude
       ];
-      createEventProvider.createEventModel.phoneNumber = phoneNumber;
+      createEventProvider.createEventModel.phoneNumber = phoneNumbers;
       createEventProvider.createEventModel.address = [
         _locationUrlController.text.toString()
       ];
