@@ -293,7 +293,6 @@ const onBoardUser = async (request) => {
   try {
     console.log("onBoardUser called. Request body:", request.body);
     console.log("onBoardUser called. Request files:", request.files);
-    console.log("onBoardUser called. Request user:", request.user);
 
     if (!request.user || !request.user.id) {
       throw new appError(httpStatus.UNAUTHORIZED, "Authentication required");
@@ -302,7 +301,7 @@ const onBoardUser = async (request) => {
     const { 
       name, 
       email, 
-      userName,  // Changed from username to userName
+      userName,
       mobileNo, 
       bio, 
       teacherId, 
@@ -315,7 +314,7 @@ const onBoardUser = async (request) => {
     } = request.body;
 
     // Validate required fields
-    if (!userName || !name) {  // Changed from username to userName
+    if (!userName || !name) {
       throw new appError(httpStatus.BAD_REQUEST, "Username and name are required");
     }
 
@@ -325,7 +324,7 @@ const onBoardUser = async (request) => {
         { _id: { $ne: request.user.id } },
         {
           $or: [
-            { userName: userName },  // Changed from username to userName
+            { userName: userName },
             { email: email ? email.toLowerCase() : null }
           ]
         }
@@ -333,7 +332,7 @@ const onBoardUser = async (request) => {
     });
 
     if (existingUser) {
-      if (existingUser.userName === userName) {  // Changed from username to userName
+      if (existingUser.userName === userName) {
         throw new appError(httpStatus.CONFLICT, "Username already exists");
       }
       if (email && existingUser.email === email.toLowerCase()) {
@@ -347,28 +346,20 @@ const onBoardUser = async (request) => {
     // Handle file uploads
     if (request.files) {
       try {
-        // Handle profile image
-        if (request.files.profileImage && request.files.profileImage[0]) {
-          const profileImageFile = request.files.profileImage[0];
-          console.log('Uploading profile image:', profileImageFile.originalname);
+        if (request.files.profileImage?.[0]) {
           profileImage = await uploadToFirebase(
-            profileImageFile.buffer,
-            `profiles/${request.user.id}/${Date.now()}_${profileImageFile.originalname}`,
-            profileImageFile.mimetype
+            request.files.profileImage[0].buffer,
+            `profiles/${request.user.id}/${Date.now()}_${request.files.profileImage[0].originalname}`,
+            request.files.profileImage[0].mimetype
           );
-          console.log('Profile image uploaded:', profileImage);
         }
 
-        // Handle teacher ID card
-        if (request.files.teacherIdCard && request.files.teacherIdCard[0]) {
-          const teacherIdFile = request.files.teacherIdCard[0];
-          console.log('Uploading teacher ID card:', teacherIdFile.originalname);
+        if (request.files.teacherIdCard?.[0]) {
           teacherIdCardUrl = await uploadToFirebase(
-            teacherIdFile.buffer,
-            `teacher_ids/${request.user.id}/${Date.now()}_${teacherIdFile.originalname}`,
-            teacherIdFile.mimetype
+            request.files.teacherIdCard[0].buffer,
+            `teacher_ids/${request.user.id}/${Date.now()}_${request.files.teacherIdCard[0].originalname}`,
+            request.files.teacherIdCard[0].mimetype
           );
-          console.log('Teacher ID card uploaded:', teacherIdCardUrl);
         }
       } catch (fileError) {
         console.error("File upload error:", fileError);
@@ -376,10 +367,10 @@ const onBoardUser = async (request) => {
       }
     }
 
-    // Prepare user data for update
+    // Prepare update data
     const updateData = {
       name,
-      userName,  // Changed from username to userName to match model
+      userName,
       email: email ? email.toLowerCase() : undefined,
       mobileNo,
       bio,
@@ -392,12 +383,10 @@ const onBoardUser = async (request) => {
       locationSharing: Boolean(locationSharing)
     };
 
-    // Add profile image if uploaded
     if (profileImage) {
       updateData.profileImage = profileImage;
     }
 
-    // Add teacher-specific fields if role is teacher
     if (role === 'teacher') {
       updateData.teacherId = teacherId;
       if (teacherIdCardUrl) {

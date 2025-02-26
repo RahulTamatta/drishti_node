@@ -1,57 +1,34 @@
-const admin = require('firebase-admin');
+const { bucket } = require('../../config/firebase-config');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 
-// Initialize Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    }),
-    storageBucket: process.env.BUCKET_NAME
-  });
-}
-
-const bucket = admin.storage().bucket();
-
-const uploadToFirebase = async (buffer, path, contentType) => {
+const uploadToFirebase = async (fileBuffer, destination, mimeType) => {
   try {
-    // Create a unique filename
-    const filename = `${path}_${uuidv4()}`;
-    const file = bucket.file(filename);
+    if (!fileBuffer || !destination) {
+      throw new Error('File buffer and destination are required');
+    }
 
-    // Create write stream and upload
-    const stream = file.createWriteStream({
+    // Create a unique filename with proper extension
+    const fileExt = path.extname(destination);
+    const uniqueFilename = `${path.dirname(destination)}/${Date.now()}_${uuidv4()}${fileExt}`;
+    const file = bucket.file(uniqueFilename);
+
+    const options = {
       metadata: {
-        contentType: contentType,
+        contentType: mimeType,
       },
-      resumable: false
-    });
+      resumable: false, // Set to false for small files for better performance
+      validation: 'md5'
+    };
 
-    return new Promise((resolve, reject) => {
-      stream.on('error', (error) => {
-        console.error('Upload stream error:', error);
-        reject(error);
-      });
+    // Upload using promise-based approach
+    await file.save(fileBuffer, options);
 
-      stream.on('finish', async () => {
-        try {
-          // Make the file public
-          await file.makePublic();
+    // Make file public and get URL
+    await file.makePublic();
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${uniqueFilename}`;
 
-          // Get the public URL
-          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-          resolve(publicUrl);
-        } catch (error) {
-          console.error('Error making file public:', error);
-          reject(error);
-        }
-      });
-
-      // Write the buffer to the stream
-      stream.end(buffer);
-    });
+    return publicUrl;
   } catch (error) {
     console.error('Upload to Firebase error:', error);
     throw error;
