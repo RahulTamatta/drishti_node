@@ -54,7 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Obtain shared preferences.
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final accessTo = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+      final accessTo = await SharedPreferencesHelper.getAccessToken() ??
+          await SharedPreferencesHelper.getRefreshToken();
       print("Token  yo $accessTo");
       prefs.setString("UserID", userID);
     }
@@ -230,10 +231,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (context, state) {
                   if (state is AllEventLoadSuccess) {
                     final events = state.events.data?.data ?? [];
+                    final validEvents = events
+                        .where((e) =>
+                            e.events != null &&
+                            e.events!.isNotEmpty &&
+                            e.events!.any((ev) =>
+                                ev.teachers != null && ev.teachers!.isNotEmpty))
+                        .toList();
 
                     return ListView.builder(
+                      itemCount: validEvents.length,
                       padding: const EdgeInsets.all(0.0),
-                      itemCount: events.length,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemBuilder: (context, index) {
@@ -363,7 +371,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEventSection(
       BuildContext context, EventData res, List<Event> events) {
-    setUserID();
+    if (userID.isEmpty) {
+      setUserID();
+    }
     return Container(
       padding: const EdgeInsets.all(10),
       child: Column(
@@ -413,21 +423,53 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: events.length,
                     itemBuilder: (context, index) {
                       final event = events[index];
-                      return InkWell(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => CourseDetailsScreen(
-                                  event: event, userID: userID),
-                            ),
-                          );
-                        },
-                        child: HomeListViewItem(
-                          event: event,
-                          userID: userID,
-                          position: position!,
-                        ),
-                      );
+                      if (event != null && userID.isNotEmpty) {
+                        return InkWell(
+                          onTap: () {
+                            if (event != null &&
+                                userID.isNotEmpty &&
+                                event.title != null &&
+                                event.dateFrom != null &&
+                                event.teachers !=
+                                    null && // Add teacher null check
+                                event.teachers!.isNotEmpty) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => CourseDetailsScreen(
+                                    event: event,
+                                    userID: userID,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Course details are incomplete'),
+                                ),
+                              );
+                            }
+                          },
+                          child: HomeListViewItem(
+                            event: event,
+                            userID: userID,
+                            position: position ??
+                                Position(
+                                  longitude: 0.0,
+                                  latitude: 0.0,
+                                  timestamp: DateTime.now(),
+                                  accuracy: 0.0,
+                                  altitude: 0.0,
+                                  heading: 0.0,
+                                  speed: 0.0,
+                                  speedAccuracy: 0.0,
+                                  altitudeAccuracy: 0.0,
+                                  headingAccuracy: 0.0,
+                                ),
+                          ),
+                        );
+                      }
+                      return const SizedBox(); // Skip rendering if event or userID is null
                     },
                   ),
           ),

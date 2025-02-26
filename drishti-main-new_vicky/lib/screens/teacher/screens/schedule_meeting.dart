@@ -90,98 +90,105 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     }
   }
 
-void _submitForm(
-    CreateEventProvider createEventProvider, BuildContext mcontext) async {
-  final addressProvider =
-      Provider.of<AddressProvider>(context, listen: false);
-  final lat = addressProvider.latitude;
-  final lng = addressProvider.longitude;
+  void _submitForm(
+      CreateEventProvider createEventProvider, BuildContext mcontext) async {
+    final addressProvider =
+        Provider.of<AddressProvider>(context, listen: false);
+    final lat = addressProvider.latitude;
+    final lng = addressProvider.longitude;
 
-  if (!_validateFields()) {
-    showToast(
-      text: "Please fill all required fields",
-      color: Colors.red,
-      context: mcontext,
-    );
-    return;
-  }
-
-  // Validate mode selection
-  if (_selectedOption.isEmpty) {
-    showToast(
-      text: "Please select either Online or Offline mode",
-      color: Colors.red,
-      context: mcontext,
-    );
-    return;
-  }
-
-  // Filter out empty phone numbers
-  String? phoneNumber = _phoneNumberControllers
-      .map((controller) => controller.text.trim())
-      .where((number) => number.isNotEmpty)
-      .firstOrNull;
-
-  if (phoneNumber == null) {
-    showToast(
-      text: "Please enter at least one phone number",
-      color: Colors.red,
-      context: mcontext,
-    );
-    return;
-  }
-
-  try {
-    createEventProvider.createEventModel.aol = ['course'];
-    createEventProvider.createEventModel.mode =
-        _selectedOption.map((option) => option.name).join(',');
-    createEventProvider.createEventModel.meetingLink =
-        _selectedOption.contains(OfflineOnlineOption.online)
-            ? _meetingIDController.text
-            : null;
-
-    // Validate duration fields
-    if (createEventProvider.createEventModel.durationFrom == null || 
-        createEventProvider.createEventModel.durationTo == null) {
+    if (!_validateFields()) {
       showToast(
-        text: "Please select duration (start and end time)",
+        text: "Please fill all required fields",
         color: Colors.red,
         context: mcontext,
       );
       return;
     }
 
-    createEventProvider.createEventModel.description = _descriptionController.text;
-    createEventProvider.createEventModel.registrationLink = _registrationLinkController.text;
-    createEventProvider.createEventModel.teachers = addedTeachers;
-    createEventProvider.createEventModel.phoneNumber = [phoneNumber];
-    createEventProvider.createEventModel.address = [_locationUrlController.text];
-
-    if (lat != null && lng != null) {
-      createEventProvider.createEventModel.coordinates = [lng, lat];
+    // Validate mode selection
+    if (_selectedOption.isEmpty) {
+      showToast(
+        text: "Please select either Online or Offline mode",
+        color: Colors.red,
+        context: mcontext,
+      );
+      return;
     }
 
-    debugPrint("Submitting event with data: ${createEventProvider.createEventModel.toJson()}");
+    // Filter out empty phone numbers
+    String? phoneNumber = _phoneNumberControllers
+        .map((controller) => controller.text.trim())
+        .where((number) => number.isNotEmpty)
+        .firstOrNull;
 
-    if (mounted) {
-      context.read<CreateEventBloc>().add(CreateEvent(
-          event: createEventProvider.createEventModel,
-          edit: "",
-          eventId: ""));
-
-      Navigator.push(context,
-          MaterialPageRoute(builder: (context) => const BottomNavigationScreen()));
+    if (phoneNumber == null) {
+      showToast(
+        text: "Please enter at least one phone number",
+        color: Colors.red,
+        context: mcontext,
+      );
+      return;
     }
-  } catch (e, stackTrace) {
-    debugPrint("Error creating event: $e");
-    debugPrint("Stack trace: $stackTrace");
-    showToast(
-      text: "Error creating event: $e",
-      color: Colors.red,
-      context: mcontext,
-    );
+
+    try {
+      createEventProvider.createEventModel.aol = ['course'];
+      createEventProvider.createEventModel.mode =
+          _selectedOption.map((option) => option.name).join(',');
+      createEventProvider.createEventModel.meetingLink =
+          _selectedOption.contains(OfflineOnlineOption.online)
+              ? _meetingIDController.text
+              : null;
+
+      // Validate duration fields
+      if (createEventProvider.createEventModel.durationFrom == null ||
+          createEventProvider.createEventModel.durationTo == null) {
+        showToast(
+          text: "Please select duration (start and end time)",
+          color: Colors.red,
+          context: mcontext,
+        );
+        return;
+      }
+
+      createEventProvider.createEventModel.description =
+          _descriptionController.text;
+      createEventProvider.createEventModel.registrationLink =
+          _registrationLinkController.text;
+      createEventProvider.createEventModel.teachers = addedTeachers;
+      createEventProvider.createEventModel.phoneNumber = [phoneNumber];
+      createEventProvider.createEventModel.address = [
+        _locationUrlController.text
+      ];
+
+      if (lat != null && lng != null) {
+        createEventProvider.createEventModel.coordinates = [lng, lat];
+      }
+
+      debugPrint(
+          "Submitting event with data: ${createEventProvider.createEventModel.toJson()}");
+
+      if (mounted) {
+        context.read<CreateEventBloc>().add(CreateEvent(
+            event: createEventProvider.createEventModel,
+            edit: "",
+            eventId: ""));
+
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => const BottomNavigationScreen()));
+      }
+    } catch (e, stackTrace) {
+      debugPrint("Error creating event: $e");
+      debugPrint("Stack trace: $stackTrace");
+      showToast(
+        text: "Error creating event: $e",
+        color: Colors.red,
+        context: mcontext,
+      );
+    }
   }
-}
 
   bool _validateFields() {
     // Basic validation for required fields

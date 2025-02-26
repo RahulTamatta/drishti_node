@@ -107,11 +107,13 @@ class Event {
       this.distanceInKilometers,
       this.mapUrl});
 
-  factory Event.fromJson(Map<String, dynamic> json) => Event(
-        id: json["_id"],
+  factory Event.fromJson(Map<String, dynamic> json) {
+    try {
+      return Event(
+        id: json["_id"] as String?,
         title: json["title"] == null
             ? []
-            : List<String>.from(json["title"]!.map((x) => x)),
+            : List<String>.from(json["title"]!.map((x) => x.toString())),
         participantsDetails: json["participantsDetails"] == null
             ? []
             : List<Detail>.from(
@@ -156,6 +158,18 @@ class Event {
             : List<String>.from(json["notifyTo"]!.map((x) => x)),
         distanceInKilometers: json["distanceInKilometers"],
       );
+    } catch (e) {
+      // Log the error and return a safe default Event
+      print('Error parsing Event: $e');
+      return Event(
+        title: ['Error loading event'],
+        participantsDetails: [],
+        teachers: [],
+        address: [],
+        phoneNumber: [],
+      );
+    }
+  }
 
   Map<String, dynamic> toJson() => {
         "_id": id,

@@ -28,7 +28,8 @@ class AllCoursesScreen extends StatefulWidget {
 class _AllCoursesScreenState extends State<AllCoursesScreen> {
   ApiBloc apiBloc = ApiBloc();
   Future<Widget> bloc(id) async {
-    String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+    String? token = await SharedPreferencesHelper.getAccessToken() ??
+        await SharedPreferencesHelper.getRefreshToken();
     print("Token: $token");
 
     dynamic headers = {
@@ -151,11 +152,13 @@ class _AllCoursesScreenState extends State<AllCoursesScreen> {
                     final Event? event = widget.eventsData?.events?[index];
                     return InkWell(
                       onTap: () {
-                        Navigator.of(context)
-                            .push(MaterialPageRoute(builder: (context) {
-                          return CourseDetailsScreen(
-                              event: event, userID: widget.userID);
-                        }));
+                        if (event != null) {
+                          Navigator.of(context)
+                              .push(MaterialPageRoute(builder: (context) {
+                            return CourseDetailsScreen(
+                                event: event, userID: widget.userID);
+                          }));
+                        }
                       },
                       child: Padding(
                           padding: const EdgeInsets.only(bottom: 25.0),

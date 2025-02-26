@@ -45,28 +45,35 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<OnboardResponse> addProfile(
       {required Map<String, dynamic> profileData}) async {
-    final onboardResponse = await _profileService.addProfileDetails(
-      userName: profileData['userName'] as String,  // Changed from username to userName
-      fullName: profileData['name'] as String,
-      email: profileData['email'] as String,
-      phoneNumber: profileData['mobileNo'] as String,
-      teacherId: profileData['teacherId'] as String? ?? '',
-      isArtOfLivingTeacher:
-          profileData['role'] == 'teacher' ? YesNoOption.yes : YesNoOption.no,
-    );
-
-    if (onboardResponse == null) {
-      // Either throw an exception or return a default error response
-      throw Exception("Failed to add profile details: null response returned.");
+    print('DEBUG: Adding profile with data: $profileData');
+    try {
+      final onboardResponse = await _profileService.addProfileDetails(
+        userName: profileData['userName']
+            as String, // Changed from username to userName
+        fullName: profileData['name'] as String,
+        email: profileData['email'] as String,
+        phoneNumber: profileData['mobileNo'] as String,
+        teacherId: profileData['teacherId'] as String? ?? '',
+        isArtOfLivingTeacher:
+            profileData['role'] == 'teacher' ? YesNoOption.yes : YesNoOption.no,
+      );
+      print('DEBUG: Add profile response: $onboardResponse');
+      if (onboardResponse == null) {
+        throw Exception('Failed to add profile: Response was null');
+      }
+      return onboardResponse;
+    } catch (e) {
+      print('DEBUG: Error in addProfile: $e');
+      throw Exception("Failed to add profile details: $e");
     }
-
-    return onboardResponse;
   }
 
   @override
   Future<ProfileDetailsResponse> getProfileDetails() async {
+    print('DEBUG: Fetching profile details');
     try {
       final response = await _profileService.getProfileDetails();
+      print('DEBUG: Profile details response: $response');
       if (response == null) {
         return ProfileDetailsResponse(
           success: false,
@@ -76,6 +83,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
       }
       return response;
     } catch (e) {
+      print('DEBUG: Error in getProfileDetails: $e');
       return ProfileDetailsResponse(
         success: false,
         message: 'Error: ${e.toString()}',
@@ -87,14 +95,22 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<ProfileDetailsResponse> updateProfile(
       {required Map<String, dynamic> profileData, id}) async {
-    // Convert profileData map to UserDetailsModel using jsonToUserDetails
-    final UserDetailsModel userModel = UserDetailsModel.jsonToUserDetails({
-      ...profileData,
-      '_id':
-          id ?? profileData['id'], // Use _id as that's what the model expects
-    });
+    print('DEBUG: Updating profile with data: $profileData, id: $id');
+    try {
+      // Convert profileData map to UserDetailsModel using jsonToUserDetails
+      final UserDetailsModel userModel = UserDetailsModel.jsonToUserDetails({
+        ...profileData,
+        '_id':
+            id ?? profileData['id'], // Use _id as that's what the model expects
+      });
 
-    return await _profileService.updateProfile(userModel);
+      final response = await _profileService.updateProfile(userModel);
+      print('DEBUG: Update profile response: $response');
+      return response;
+    } catch (e) {
+      print('DEBUG: Error in updateProfile: $e');
+      rethrow;
+    }
   }
 
   @override
@@ -126,7 +142,8 @@ void main() async {
   Bloc.observer = AppBlocObserver();
 
   final profileService = ProfileService();
-  final profileRepository = ProfileRepositoryImpl(profileService: profileService);
+  final profileRepository =
+      ProfileRepositoryImpl(profileService: profileService);
   final authRepository = AuthRepositoryImp();
   final eventsRepository = AllEventsRepositoryImpl();
 
@@ -136,28 +153,29 @@ void main() async {
       ChangeNotifierProvider(create: (_) => CourseSelectionProvider()),
       ChangeNotifierProvider(create: (_) => LocationProvider()),
       ChangeNotifierProvider(create: (_) => AddressProvider()),
-      ChangeNotifierProvider(create: (_) => CreateEventProvider(CreateEventModel(
-        mode: null,
-        aol: [],
-        title: [],
-        recurring: false,
-        durationFrom: null,
-        durationTo: null,
-        timeOffset: null,
-        meetingLink: null,
-        phoneNumber: [],
-        address: [],
-        description: null,
-        registrationLink: null,
-        coordinates: [],
-        teachers: [],
-        date: EventDateTime(from: null, to: null),
-      ))),
+      ChangeNotifierProvider(
+          create: (_) => CreateEventProvider(CreateEventModel(
+                mode: null,
+                aol: [],
+                title: [],
+                recurring: false,
+                durationFrom: null,
+                durationTo: null,
+                timeOffset: null,
+                meetingLink: null,
+                phoneNumber: [],
+                address: [],
+                description: null,
+                registrationLink: null,
+                coordinates: [],
+                teachers: [],
+                date: EventDateTime(from: null, to: null),
+              ))),
       ChangeNotifierProvider(create: (_) => CourseListProvider()),
       ChangeNotifierProvider(create: (_) => BottomSheetContentProvider()),
       ChangeNotifierProvider(create: (_) => HomeProvider()),
       ChangeNotifierProvider(create: (_) => TeacherProvider(TData())),
-      
+
       // BlocProviders
       BlocProvider(create: (_) => UserLocationBloc()),
       BlocProvider(create: (_) => ProfileDetailsBloc(profileRepository)),

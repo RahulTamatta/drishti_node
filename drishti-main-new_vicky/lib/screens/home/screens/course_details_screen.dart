@@ -1,6 +1,7 @@
 import 'package:srisridrishti/bloc_latest/bloc/api_bloc.dart';
 import 'package:srisridrishti/bloc_latest/bloc/bloc_event.dart';
 import 'package:srisridrishti/bloc_latest/bloc/bloc_state.dart';
+import 'package:srisridrishti/models/teacher_details_model.dart';
 import 'package:srisridrishti/utils/shared_preference_helper.dart';
 import 'package:srisridrishti/utils/show_toast.dart';
 import 'package:srisridrishti/utils/utill.dart';
@@ -16,12 +17,14 @@ import '../../../themes/theme.dart';
 import '../widgets/course_details_card.dart';
 
 class CourseDetailsScreen extends StatefulWidget {
-  final Event? event;
-
+  final Event event;
   final String userID;
 
-  const CourseDetailsScreen(
-      {super.key, required this.event, required this.userID});
+  const CourseDetailsScreen({
+    Key? key,
+    required this.event,
+    required this.userID,
+  }) : super(key: key);
 
   @override
   State<CourseDetailsScreen> createState() => _CourseDetailsScreenState();
@@ -40,7 +43,8 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
 
   ApiBloc apiBloc = ApiBloc();
   Future<Widget> bloc(id) async {
-    String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+    String? token = await SharedPreferencesHelper.getAccessToken() ??
+        await SharedPreferencesHelper.getRefreshToken();
     print("Token: $token");
 
     dynamic headers = {
@@ -136,15 +140,61 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
     super.dispose();
   }
 
+  String get formattedDate {
+    if (widget.event.dateFrom == null) return 'Date not available';
+    return DateFormat('yyyy-MM-dd').format(widget.event.dateFrom!);
+  }
+
+  String get formattedTimeLeft {
+    if (widget.event.dateFrom == null) return 'Time not available';
+    final now = DateTime.now();
+    final eventDate = widget.event.dateFrom!;
+    if (eventDate.isBefore(now)) return 'Event has passed';
+
+    final difference = eventDate.difference(now);
+    if (difference.inDays > 0) {
+      return '${difference.inDays} days left';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hours left';
+    } else {
+      return '${difference.inMinutes} minutes left';
+    }
+  }
+
+  // Add safety getters
+  String get courseTitle =>
+      widget.event.title?.firstOrNull ?? 'Untitled Course';
+
+  String get courseDate {
+    return widget.event.dateFrom != null
+        ? DateFormat('yyyy-MM-dd').format(widget.event.dateFrom!)
+        : 'Date not available';
+  }
+
+  String get courseTime => widget.event.durationFrom ?? 'Time not specified';
+
+  String get courseMode => widget.event.mode ?? 'Mode not specified';
+
   @override
   Widget build(BuildContext context) {
-    var width = MediaQuery.of(context).size.height;
-    DateTime dateTime = widget.event!.dateFrom!;
-    String formattedDate = DateFormat('yyyy-MM-dd').format(dateTime);
+    final width = MediaQuery.of(context).size.height;
 
-    Duration timeLeft =
-        calculateTimeLeft(widget.event?.dateFrom.toString() ?? '');
-    String formattedTimeLeft = formatDuration(timeLeft);
+    // Early return if event is null
+    if (widget.event == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Course Details'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: const Center(
+          child: Text('Course details not available'),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -189,9 +239,11 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
           children: [
             courseDetailsCard(
               width: width,
-              courseName: '${widget.event?.title![0]}',
+              courseName: widget.event.title?.isNotEmpty == true
+                  ? widget.event.title![0]
+                  : 'Untitled Course',
               courseDate: formattedDate,
-              coursetime: '${widget.event?.durationFrom}',
+              coursetime: widget.event.durationFrom ?? 'Time not specified',
               courseStartsIn: formattedTimeLeft,
               courseMode: '',
             ),
@@ -208,16 +260,17 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 ),
               ),
             ),
-            if (widget.event?.teachersDetails?.isNotEmpty ?? false)
+            if (widget.event.teachersDetails?.isNotEmpty ?? false)
               SizedBox(
                 height: 100.0.sp,
                 child: ListView.builder(
                   padding: const EdgeInsets.only(left: 12),
                   scrollDirection: Axis.horizontal,
-                  itemCount: widget.event?.teachersDetails!.length == null
-                      ? 0
-                      : widget.event!.teachers!.length,
+                  itemCount: widget.event.teachersDetails?.length ?? 0,
                   itemBuilder: (context, index) {
+                    final teacherDetails = widget.event.teachersDetails?[index];
+                    if (teacherDetails == null) return const SizedBox.shrink();
+
                     return InkWell(
                       onTap: () {},
                       child: Column(
@@ -239,14 +292,11 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                     ),
                                   ),
                                 ),
-                                widget.event!.teachersDetails![index]
-                                        .profileImage!.isNotEmpty
+                                teacherDetails.profileImage?.isNotEmpty == true
                                     ? ClipOval(
                                         child: Image(
-                                        image: NetworkImage(widget
-                                            .event!
-                                            .teachersDetails![index]
-                                            .profileImage!),
+                                        image: NetworkImage(
+                                            teacherDetails.profileImage!),
                                         width: 60.0,
                                         height: 60.0,
                                         fit: BoxFit.cover,
@@ -263,7 +313,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                             ),
                           ),
                           Text(
-                            "${widget.event!.teachersDetails![index].name!.isNotEmpty ? widget.event!.teachersDetails![index].name : ''}",
+                            "${widget.event.teachersDetails![index].name!.isNotEmpty ? widget.event.teachersDetails![index].name : ''}",
                             style: GoogleFonts.lato(
                               textStyle: TextStyle(
                                   overflow: TextOverflow.ellipsis,
@@ -316,7 +366,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
               ),
               child: ListTile(
                 title: Text(
-                  "${widget.event?.meetingLink}",
+                  widget.event.meetingLink ?? "No meeting link available",
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.lato(
                     textStyle: TextStyle(
@@ -327,7 +377,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                 ),
                 trailing: InkWell(
                     onTap: () {
-                      _copyToClipboard(widget.event?.meetingLink ?? "");
+                      _copyToClipboard(widget.event.meetingLink ?? "");
                     },
                     child: const Icon(
                       Icons.copy,
@@ -364,9 +414,9 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                       ],
                     ),
                     const SizedBox(width: 10),
-                    widget.event!.participantsDetails!.isNotEmpty
+                    widget.event.participantsDetails?.isNotEmpty == true
                         ? Text(
-                            "${widget.event?.participantsDetails?.length}+ Participant",
+                            "${widget.event.participantsDetails?.length ?? 0}+ Participant",
                             style: GoogleFonts.manrope(
                               textStyle: TextStyle(
                                   overflow: TextOverflow.ellipsis,
@@ -408,7 +458,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: width * 0.02),
               child: Text(
-                '${widget.event?.description}',
+                '${widget.event.description}',
                 style: GoogleFonts.manrope(
                   textStyle: TextStyle(
                       overflow: TextOverflow.ellipsis,
@@ -457,7 +507,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                           width: MediaQuery.of(context).size.width * 0.63,
                           alignment: Alignment.center,
                           height: width * 0.1,
-                          child: Text("${widget.event?.address?[0]}",
+                          child: Text("${widget.event.address?[0]}",
                               maxLines: 2,
                               style: GoogleFonts.manrope(
                                 textStyle: TextStyle(
@@ -470,9 +520,19 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                         const Spacer(),
                         InkWell(
                           onTap: () {
-                            getAddressInMap(
-                                widget.event!.location!.coordinates![0],
-                                widget.event!.location!.coordinates![1]);
+                            final coordinates =
+                                widget.event.location?.coordinates;
+                            if (coordinates != null &&
+                                coordinates.length >= 2) {
+                              getAddressInMap(coordinates[0], coordinates[1]);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Location coordinates not available'),
+                                ),
+                              );
+                            }
                           },
                           child: Transform.rotate(
                               alignment: Alignment.center,
@@ -496,7 +556,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                 InkWell(
                                   onTap: () async {
                                     _launchWhatsApp(
-                                        '${widget.event?.phoneNumber}',
+                                        '${widget.event.phoneNumber}',
                                         'Hello, this is a message!');
                                   },
                                   child: Container(
@@ -525,39 +585,53 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                 ),
                                 const SizedBox(width: 5),
                                 Visibility(
-                                  visible:
-                                      widget.event!.registrationLink!.isNotEmpty
-                                          ? true
-                                          : false,
+                                  visible: widget
+                                          .event.registrationLink?.isNotEmpty ==
+                                      true,
                                   child: InkWell(
                                     onTap: () async {
-                                      final Uri url = Uri.parse(
-                                          '${widget.event!.registrationLink}');
-                                      if (!await launchUrl(url)) {
-                                        throw Exception(
-                                            'Could not launch $url');
+                                      if (widget.event.registrationLink !=
+                                          null) {
+                                        final Uri url = Uri.parse(
+                                            widget.event.registrationLink!);
+                                        try {
+                                          if (!await launchUrl(url)) {
+                                            throw Exception(
+                                                'Could not launch $url');
+                                          }
+                                        } catch (e) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                  content: Text(
+                                                      'Could not launch URL: $e')),
+                                            );
+                                          }
+                                        }
                                       }
                                     },
                                     child: Container(
                                       padding: EdgeInsets.symmetric(
-                                          horizontal: width * 0.01,
-                                          vertical: width * 0.01),
+                                        horizontal: width * 0.01,
+                                        vertical: width * 0.01,
+                                      ),
                                       decoration: BoxDecoration(
-                                          border: Border.all(
-                                              color: AppColors.purple_7D5EFF),
-                                          borderRadius:
-                                              BorderRadius.circular(5)),
+                                        border: Border.all(
+                                            color: AppColors.purple_7D5EFF),
+                                        borderRadius: BorderRadius.circular(5),
+                                      ),
                                       child: Row(
                                         children: [
-                                          // Image.asset("assets/images/zoom.png"),
                                           const SizedBox(width: 10),
                                           Text(
                                             "Register",
                                             style: GoogleFonts.openSans(
                                               textStyle: TextStyle(
-                                                  color: Colors.blue,
-                                                  fontSize: width * 0.018,
-                                                  fontWeight: FontWeight.w600),
+                                                color: Colors.blue,
+                                                fontSize: width * 0.018,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -566,14 +640,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                   ),
                                 ),
                                 Visibility(
-                                  visible: widget.event!.meetingLink!
-                                          .contains("zoom")
-                                      ? true
-                                      : false,
+                                  visible:
+                                      widget.event.meetingLink!.contains("zoom")
+                                          ? true
+                                          : false,
                                   child: InkWell(
                                     onTap: () async {
                                       _launchZoom(
-                                          widget.event?.meetingLink ?? "");
+                                          widget.event.meetingLink ?? "");
                                     },
                                     child: Container(
                                       padding: EdgeInsets.symmetric(
@@ -604,14 +678,14 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                 ),
                                 const SizedBox(width: 5),
                                 Visibility(
-                                  visible: widget.event!.meetingLink!
-                                          .contains("meet")
-                                      ? true
-                                      : false,
+                                  visible:
+                                      widget.event.meetingLink!.contains("meet")
+                                          ? true
+                                          : false,
                                   child: InkWell(
                                     onTap: () async {
                                       _launchZoom(
-                                          widget.event?.meetingLink ?? "");
+                                          widget.event.meetingLink ?? "");
                                     },
                                     child: Container(
                                       padding: EdgeInsets.symmetric(
@@ -644,7 +718,7 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                                 InkWell(
                                   onTap: () async {
                                     _launchDialpad(
-                                        widget.event!.phoneNumber!.toString());
+                                        widget.event.phoneNumber!.toString());
                                   },
                                   child: Container(
                                     padding: EdgeInsets.symmetric(
@@ -674,13 +748,15 @@ class _CourseDetailsScreenState extends State<CourseDetailsScreen> {
                           ],
                         )),
                     const SizedBox(height: 25),
-                    widget.event!.notifyTo!.contains(widget.userID)
+                    widget.event.notifyTo?.contains(widget.userID) == true
                         ? _notifyButton(true)
                         : InkWell(
                             onTap: () async {
-                              setState(() {
-                                bloc(widget.event!.id);
-                              });
+                              if (widget.event.id != null) {
+                                setState(() {
+                                  bloc(widget.event.id);
+                                });
+                              }
                             },
                             child: _notifyButton(false),
                           )
@@ -886,5 +962,41 @@ class MapUtils {
     } else {
       throw 'Could not open the map.';
     }
+  }
+}
+
+// Helper widget for teacher cards
+// Updated TeacherCard with null safety
+class TeacherCard extends StatelessWidget {
+  final TeachersDetails? teacher; // Make nullable
+
+  const TeacherCard({Key? key, this.teacher})
+      : super(key: key); // Remove required
+
+  @override
+  Widget build(BuildContext context) {
+    if (teacher == null) {
+      // Add null guard
+      return const SizedBox.shrink(); // Or placeholder widget
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundImage: NetworkImage(
+              teacher!.profileImage ?? 'https://placeholder.com/user',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            teacher!.name ?? 'Unknown Teacher',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    );
   }
 }

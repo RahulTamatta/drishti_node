@@ -878,7 +878,7 @@ const createEventService = async (request) => {
       throw new appError(httpStatus.BAD_REQUEST, 'Required fields are missing');
     }
 
-    // Create new event
+    // Create new event with meetingLink included
     const newEvent = new Event({
       mode,
       aol,
@@ -887,7 +887,7 @@ const createEventService = async (request) => {
       recurring,
       duration: [{ from: durationFrom, to: durationTo }],
       timeOffset,
-      meetingLink,
+      meetingLink,  // Include meetingLink in event creation
       phoneNumber,
       address,
       description,
@@ -896,11 +896,16 @@ const createEventService = async (request) => {
         type: 'Point',
         coordinates
       },
-      teachers
+      teachers,
+      userId: request.user.id
     });
 
     const savedEvent = await newEvent.save();
-    return savedEvent;
+
+    return {
+      message: 'Event created successfully',
+      data: savedEvent
+    };
   } catch (error) {
     console.error('Error creating event:', error);
     throw new appError(httpStatus.INTERNAL_SERVER_ERROR, error.message || 'Failed to create event');

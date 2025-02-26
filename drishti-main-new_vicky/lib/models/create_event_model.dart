@@ -8,7 +8,7 @@ class CreateEventModel {
   bool? recurring;
   String? durationFrom;
   List<Map<String, String>>? duration;
-  
+
   String? durationTo;
   String? timeTitle;
   String? timeOffset;
@@ -75,10 +75,9 @@ class CreateEventModel {
 
     // Duration handling with time format validation
     if (durationFrom != null && durationTo != null) {
-      data['duration'] = [{
-        'from': _formatTime(durationFrom!),
-        'to': _formatTime(durationTo!)
-      }];
+      data['duration'] = [
+        {'from': _formatTime(durationFrom!), 'to': _formatTime(durationTo!)}
+      ];
     }
 
     // Add optional fields
@@ -102,15 +101,15 @@ class CreateEventModel {
   String _formatTime(String time) {
     final RegExp exp = RegExp(r'(\d{1,2}):(\d{2})(AM|PM)');
     final match = exp.firstMatch(time);
-    
+
     if (match != null) {
       var hour = int.parse(match.group(1)!);
       final minute = match.group(2)!;
       final period = match.group(3);
-      
+
       if (period == 'PM' && hour < 12) hour += 12;
       if (period == 'AM' && hour == 12) hour = 0;
-      
+
       return '${hour.toString().padLeft(2, '0')}:$minute';
     }
     return time;
