@@ -70,6 +70,7 @@ class CreateEventModel {
     timeOffset = json['timeOffset'];
     meetingLink = json['meetingLink'];
 <<<<<<< HEAD
+<<<<<<< HEAD
     phoneNumber = json['phoneNumber'] != null ? [json['phoneNumber']] : null;
     address =
         json['address'] != null ? List<String>.from(json['address']) : null;
@@ -142,6 +143,44 @@ class CreateEventModel {
   }
 
 =======
+    coordinates = List<double>.from(json['coordinates']);
+    teachers = List<String>.from(json['teachers']);
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['mode'] = mode;
+    data['aol'] = aol;
+    data['title'] = title;
+    data['timeTitle'] = timeTitle;
+    if (date != null) {
+      data['date'] = date!.toJson();
+    }
+    data['recurring'] = recurring;
+
+    data['durationFrom'] = durationFrom!;
+    data['durationTo'] = durationTo!;
+
+    data['timeOffset'] = timeOffset;
+    data['meetingLink'] = meetingLink;
+    data['phoneNumber'] = phoneNumber;
+    data['address'] = address;
+    data['description'] = description;
+    data['mapUrl'] = mapUrl;
+    data['registrationLink'] = registrationLink;
+    data['coordinates'] = coordinates;
+    data['teachers'] = teachers;
+    return data;
+  }
+
+  // The copyWith method
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
+    phoneNumber = json['phoneNumber'];
+    address = List<String>.from(json['address']);
+    description = json['description'];
+    mapUrl = json['mapUrl'];
+    registrationLink = json['registrationLink'];
     coordinates = List<double>.from(json['coordinates']);
     teachers = List<String>.from(json['teachers']);
   }

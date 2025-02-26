@@ -142,6 +142,7 @@ void main() async {
   Bloc.observer = AppBlocObserver();
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   final profileService = ProfileService();
   final profileRepository =
       ProfileRepositoryImpl(profileService: profileService);
@@ -190,6 +191,13 @@ void main() async {
       BlocProvider(create: (_) => AuthenticationBloc(authRepository)),
       BlocProvider(create: (_) => AllEventBloc(eventsRepository)),
 =======
+=======
+  final profileService =
+      ProfileService(); // Create an instance of ProfileService
+
+  runApp(MultiBlocProvider(
+    providers: [
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
       ChangeNotifierProvider(create: (context) => CourseSelectionProvider()),
       ChangeNotifierProvider(create: (context) => LocationProvider()),
       ChangeNotifierProvider(create: (context) => AddressProvider()),
@@ -212,6 +220,9 @@ void main() async {
           create: (context) => AuthenticationBloc(AuthRepositoryImp())),
       BlocProvider(
           create: (context) => AllEventBloc(AllEventsRepositoryImpl())),
+<<<<<<< HEAD
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
     ],
     child: const MyApp(),

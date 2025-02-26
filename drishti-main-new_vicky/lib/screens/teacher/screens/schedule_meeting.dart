@@ -55,6 +55,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   int count = 0;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   @override
   void initState() {
     super.initState();
@@ -70,6 +71,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     });
   }
 
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 =======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
   void _addPhoneNumberField() {
@@ -102,6 +105,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   void _submitForm(
       CreateEventProvider createEventProvider, BuildContext mcontext) async {
     final addressProvider =
@@ -117,12 +121,17 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       );
       return;
 =======
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
   bool _validateFields() {
     if (_meetingIDController.text.isEmpty ||
         _descriptionController.text.isEmpty ||
         _locationUrlController.text.isEmpty ||
         _mapController.text.isEmpty) {
       return false;
+<<<<<<< HEAD
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
     }
     return true;
@@ -137,6 +146,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       List<String> phoneNumbers =
           _phoneNumberControllers.map((controller) => controller.text).toList();
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     if (phoneNumber == null) {
       showToast(
@@ -194,6 +204,18 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         createEventProvider.createEventModel.mode = [] as String?;
       }
 
+=======
+      // Handle mode selection from Set<OfflineOnlineOption>
+      if (_selectedOption.isNotEmpty) {
+        // Convert Set to List of names
+        List<String> modeNames =
+            _selectedOption.map((option) => option.name).toList();
+        createEventProvider.createEventModel.mode = modeNames as String?;
+      } else {
+        createEventProvider.createEventModel.mode = [] as String?;
+      }
+
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
       createEventProvider.createEventModel.meetingLink =
           _meetingIDController.text;
       createEventProvider.createEventModel.description =
@@ -212,6 +234,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       ];
       createEventProvider.createEventModel.aol = ["course"];
       createEventProvider.createEventModel.timeOffset = "UTC+05:30";
+<<<<<<< HEAD
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
 
       if (mounted) {
@@ -240,6 +265,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     } else {
       showToast(
         text: "Please fill the details!",
+<<<<<<< HEAD
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
         color: Colors.red,
         context: mcontext,
@@ -252,6 +280,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
 <<<<<<< HEAD
     // Get providers with null safety
     final addressProvider = Provider.of<AddressProvider>(context, listen: true);
@@ -276,6 +305,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         _locationUrlController.text = addressComponents;
       }
 =======
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
     final AddressProvider addressProvider =
         Provider.of<AddressProvider>(context, listen: true);
     final List<Placemark>? addresses = addressProvider.address;
@@ -283,6 +314,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       String address =
           '${addresses.first.name!} ${addresses.first.subLocality!} ${addresses.first.administrativeArea!} ${addresses.first.postalCode!}';
       _locationUrlController.text = address;
+<<<<<<< HEAD
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
     }
     final CreateEventProvider createEventProvider =
@@ -652,6 +686,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       Color? labelColor,
       IconData? suffixIcon}) {
 <<<<<<< HEAD
+<<<<<<< HEAD
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       child: TextFormField(
@@ -723,6 +758,14 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       onTap: () async {
         // Navigate to Select Location page
 
+=======
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      onTap: () async {
+        // Navigate to Select Location page
+
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
         Get.to(SelectLocationScreen());
       },
       style: GoogleFonts.manrope(
@@ -741,6 +784,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
             color: Colors.black,
             fontSize: 14.sp,
             fontWeight: FontWeight.w500,
+<<<<<<< HEAD
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
           ),
         ),
@@ -799,6 +845,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                   onChanged: (countryCode) {
                     setState(() {
 <<<<<<< HEAD
+<<<<<<< HEAD
                       // Store country code without + symbol for consistency
                       selectedCountryCode =
                           countryCode.dialCode?.replaceAll('+', '') ?? '';
@@ -809,6 +856,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                             .replaceAll(RegExp(r'^\+?\d+\s*'), '');
                         phoneController.text = selectedCountryCode + number;
                       }
+=======
+                      selectedCountryCode = countryCode.dialCode!;
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 =======
                       selectedCountryCode = countryCode.dialCode!;
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
@@ -839,6 +889,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
 <<<<<<< HEAD
+<<<<<<< HEAD
                     onChanged: (value) {
                       // Remove any non-digit characters from input
                       String digitsOnly = value.replaceAll(RegExp(r'\D'), '');
@@ -853,6 +904,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                         );
                       }
                     },
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 =======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
                     decoration: InputDecoration(

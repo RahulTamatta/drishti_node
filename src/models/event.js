@@ -34,7 +34,11 @@ const eventSchema = new mongoose.Schema(
     description: String,
     address: [],
 <<<<<<< HEAD
+<<<<<<< HEAD
     phoneNumber: [{ type: String }],
+=======
+    phoneNumber: String,
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 =======
     phoneNumber: String,
 >>>>>>> parent of 283b956a (latest update .create course is remaining)

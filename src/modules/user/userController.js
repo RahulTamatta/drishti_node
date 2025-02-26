@@ -658,6 +658,7 @@ const createAddressController = async (req, res) => {
 };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 const createEventController = async (req, res) => {
   try {
     // Format duration fields before creating event
@@ -716,6 +717,8 @@ createEvent = async (request, response) => {
   }
 };
 
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 =======
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
 module.exports = {
