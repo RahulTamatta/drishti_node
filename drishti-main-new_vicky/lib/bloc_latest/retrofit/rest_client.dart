@@ -44,7 +44,8 @@ abstract class RestClient {
 
   @MultiPart()
   @POST("/user/onBoard")
-  Future<dynamic> addProfile(@Part() FormData add, @Header("Authorization") String token);
+  Future<dynamic> addProfile(
+      @Part() FormData add, @Header("Authorization") String token);
 
   @PATCH("/user/onBoard/{id}")
   Future<dynamic> updateProfile(
