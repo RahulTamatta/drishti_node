@@ -11,6 +11,7 @@ class CreateEventService {
   CreateEventService({http.Client? httpClient})
       : client = httpClient ?? http.Client();
 
+<<<<<<< HEAD
   Future<bool> createEvent({
     required CreateEventModel event,
     required String token,
@@ -62,6 +63,94 @@ class CreateEventService {
       debugPrint('CreateEventService: Error creating event: $e');
       debugPrint('CreateEventService: Stack Trace: $stackTrace');
       rethrow;
+=======
+  Future<bool> createEvent(
+      CreateEventModel model, String? edit, String? eventId) async {
+    String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+    print("Token: $token");
+
+    print("Model${model.title}");
+    print("${model.durationFrom}${model.timeTitle}");
+    final Map<String, dynamic> requestBody = {
+      "title": model.title,
+      "mode": model.mode,
+      "aol": model.aol,
+      "date": {"from": model.date?.from, "to": model.date?.to},
+      "timeOffset": "UTC+05:30",
+      "duration": [
+        // {"from": "05:15AM", "to": "06:15AM"}
+        {
+          "from": "${model.durationFrom}${model.timeTitle}",
+          "to": "${model.durationTo}${model.timeTitle}"
+        }
+      ], // Use the duration from the model
+      "meetingLink": model.meetingLink,
+      "recurring": true,
+      "description": model.description,
+      "address": model.address,
+      "phoneNumber": model.phoneNumber,
+      "mapUrl": model.mapUrl,
+      "registrationLink": model.registrationLink,
+      "coordinates": model.coordinates,
+      "teachers": model.teachers
+    };
+
+    final String rawBody = jsonEncode(requestBody);
+
+    // Print the request body for debugging
+    print("Request Body: $rawBody");
+
+    if (edit == 'Edit Meeting') {
+      try {
+        final http.Response response = await client.patch(
+          Uri.parse('${ApiConstants.createEvent}/$eventId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ?? "",
+          },
+          body: rawBody,
+        );
+
+        if (response.statusCode == 200) {
+          // Print the response status and body for debugging
+          print("Response Status: ${response.statusCode}");
+          print("Response Body: ${response.body}");
+          return true;
+        } else {
+          debugPrint(
+              'Failed to create event: ${response.statusCode} ${response.body}');
+          return false;
+        }
+      } catch (e) {
+        debugPrint('Exception occurred: $e');
+        return false;
+      }
+    } else {
+      try {
+        final http.Response response = await client.post(
+          Uri.parse(ApiConstants.createEvent),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ?? "",
+          },
+          body: rawBody,
+        );
+
+        if (response.statusCode == 200) {
+          // Print the response status and body for debugging
+          print("Response Status: ${response.statusCode}");
+          print("Response Body: ${response.body}");
+          return true;
+        } else {
+          debugPrint(
+              'Failed to create event: ${response.statusCode} ${response.body}');
+          return false;
+        }
+      } catch (e) {
+        debugPrint('Exception occurred: $e');
+        return false;
+      }
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
     }
   }
 }

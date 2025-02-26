@@ -869,6 +869,7 @@ const createAddressService = async (request) => {
   }
 };
 
+<<<<<<< HEAD
 const createEventService = async (request) => {
   try {
     const { mode, aol, title, date, recurring, durationFrom, durationTo, timeOffset, meetingLink, phoneNumber, address, description, registrationLink, coordinates, teachers } = request.body;
@@ -912,6 +913,8 @@ const createEventService = async (request) => {
   }
 };
 
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 module.exports = {
   userLoginService,
   updateLocation,
@@ -931,6 +934,5 @@ module.exports = {
   getSocialMedia,
   getNearbyVisibleUsers,
   searchUsers,
-  createAddressService,
-  createEventService,
+  createAddressService
 };

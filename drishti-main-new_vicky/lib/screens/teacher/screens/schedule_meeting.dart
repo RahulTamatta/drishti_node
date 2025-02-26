@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geocoding_platform_interface/src/models/placemark.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../widgets/add_icon_button.dart';
@@ -53,6 +54,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
   int count = 0;
 
+<<<<<<< HEAD
   @override
   void initState() {
     super.initState();
@@ -68,6 +70,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     });
   }
 
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
   void _addPhoneNumberField() {
     setState(() {
       _phoneNumberControllers.add(TextEditingController());
@@ -76,6 +80,13 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         _phoneNumberControllers[_phoneNumberControllers.length - 1],
       ));
     });
+  }
+
+  @override
+  void initState() {
+    _addPhoneNumberField();
+
+    super.initState();
   }
 
   @override
@@ -90,6 +101,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     }
   }
 
+<<<<<<< HEAD
   void _submitForm(
       CreateEventProvider createEventProvider, BuildContext mcontext) async {
     final addressProvider =
@@ -104,24 +116,28 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         context: mcontext,
       );
       return;
+=======
+  bool _validateFields() {
+    if (_meetingIDController.text.isEmpty ||
+        _descriptionController.text.isEmpty ||
+        _locationUrlController.text.isEmpty ||
+        _mapController.text.isEmpty) {
+      return false;
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
     }
+    return true;
+  }
 
-    // Validate mode selection
-    if (_selectedOption.isEmpty) {
-      showToast(
-        text: "Please select either Online or Offline mode",
-        color: Colors.red,
-        context: mcontext,
-      );
-      return;
-    }
+  void _submitForm(
+      CreateEventProvider createEventProvider, BuildContext mcontext) async {
+    final AddressProvider addressProvider =
+        Provider.of<AddressProvider>(context, listen: true);
 
-    // Filter out empty phone numbers
-    String? phoneNumber = _phoneNumberControllers
-        .map((controller) => controller.text.trim())
-        .where((number) => number.isNotEmpty)
-        .firstOrNull;
+    if (_validateFields()) {
+      List<String> phoneNumbers =
+          _phoneNumberControllers.map((controller) => controller.text).toList();
 
+<<<<<<< HEAD
     if (phoneNumber == null) {
       showToast(
         text: "Please enter at least one phone number",
@@ -167,6 +183,36 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
       debugPrint(
           "Submitting event with data: ${createEventProvider.createEventModel.toJson()}");
+=======
+      // Handle mode selection from Set<OfflineOnlineOption>
+      if (_selectedOption.isNotEmpty) {
+        // Convert Set to List of names
+        List<String> modeNames =
+            _selectedOption.map((option) => option.name).toList();
+        createEventProvider.createEventModel.mode = modeNames as String?;
+      } else {
+        createEventProvider.createEventModel.mode = [] as String?;
+      }
+
+      createEventProvider.createEventModel.meetingLink =
+          _meetingIDController.text;
+      createEventProvider.createEventModel.description =
+          _descriptionController.text;
+      createEventProvider.createEventModel.registrationLink =
+          _registrationLinkController.text;
+      createEventProvider.createEventModel.teachers = addedTeachers;
+      createEventProvider.createEventModel.coordinates = [
+        addressProvider.latitude,
+        addressProvider.longitude
+      ];
+      createEventProvider.createEventModel.mapUrl = _mapController.text;
+      createEventProvider.createEventModel.phoneNumber = phoneNumbers;
+      createEventProvider.createEventModel.address = [
+        _locationUrlController.text
+      ];
+      createEventProvider.createEventModel.aol = ["course"];
+      createEventProvider.createEventModel.timeOffset = "UTC+05:30";
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 
       if (mounted) {
         context.read<CreateEventBloc>().add(CreateEvent(
@@ -175,6 +221,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
             eventId: ""));
 
         Navigator.push(
+<<<<<<< HEAD
             context,
             MaterialPageRoute(
                 builder: (context) => const BottomNavigationScreen()));
@@ -184,75 +231,20 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       debugPrint("Stack trace: $stackTrace");
       showToast(
         text: "Error creating event: $e",
+=======
+          context,
+          MaterialPageRoute(
+              builder: (context) => const BottomNavigationScreen()),
+        );
+      }
+    } else {
+      showToast(
+        text: "Please fill the details!",
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
         color: Colors.red,
         context: mcontext,
       );
     }
-  }
-
-  bool _validateFields() {
-    // Basic validation for required fields
-    if (_descriptionController.text.isEmpty) {
-      showToast(
-        text: "Please add a description",
-        color: Colors.red,
-        context: context,
-      );
-      return false;
-    }
-
-    // Validate phone numbers
-    bool hasValidPhoneNumber = false;
-    for (var controller in _phoneNumberControllers) {
-      String phone = controller.text.trim();
-      if (phone.isNotEmpty) {
-        String digitsOnly = phone.replaceAll(RegExp(r'\D'), '');
-        if (digitsOnly.length < 10) {
-          showToast(
-            text: "Phone numbers must have at least 10 digits",
-            color: Colors.red,
-            context: context,
-          );
-          return false;
-        }
-        hasValidPhoneNumber = true;
-      }
-    }
-
-    if (!hasValidPhoneNumber) {
-      showToast(
-        text: "Please enter at least one valid phone number",
-        color: Colors.red,
-        context: context,
-      );
-      return false;
-    }
-
-    // Validate location for offline events
-    if (_selectedOption.contains(OfflineOnlineOption.offline)) {
-      if (_locationUrlController.text.isEmpty) {
-        showToast(
-          text: "Please select a location for offline event",
-          color: Colors.red,
-          context: context,
-        );
-        return false;
-      }
-    }
-
-    // Validate meeting link for online events
-    if (_selectedOption.contains(OfflineOnlineOption.online)) {
-      if (_meetingIDController.text.isEmpty) {
-        showToast(
-          text: "Please provide a meeting link for online event",
-          color: Colors.red,
-          context: context,
-        );
-        return false;
-      }
-    }
-
-    return true;
   }
 
   bool isEnd = false;
@@ -260,6 +252,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
     // Get providers with null safety
     final addressProvider = Provider.of<AddressProvider>(context, listen: true);
     final createEventProvider =
@@ -282,7 +275,20 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       if (addressComponents.isNotEmpty) {
         _locationUrlController.text = addressComponents;
       }
+=======
+    final AddressProvider addressProvider =
+        Provider.of<AddressProvider>(context, listen: true);
+    final List<Placemark>? addresses = addressProvider.address;
+    if (addresses != null) {
+      String address =
+          '${addresses.first.name!} ${addresses.first.subLocality!} ${addresses.first.administrativeArea!} ${addresses.first.postalCode!}';
+      _locationUrlController.text = address;
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
     }
+    final CreateEventProvider createEventProvider =
+        Provider.of<CreateEventProvider>(context, listen: true);
+    final TeacherProvider teacherProvider =
+        Provider.of<TeacherProvider>(context, listen: true);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -341,9 +347,11 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
             SizedBox(height: 20.sp),
             CourseFollowupEventWidget(),
             SizedBox(height: 20.sp),
+
             SelectCourseWidget(),
             SizedBox(height: 13.sp),
             const MyDateRangePicker(),
+
             SizedBox(height: 13.sp),
             Row(
                 // crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,18 +394,11 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
               ),
             ),
             SizedBox(height: 13.sp),
-            _textFieldWidgetLoc(
-              _locationUrlController,
-              "Location",
-              prefixIcon: Icons.location_on,
-              suffixIcon: Icons.edit_location,
-            ),
-            if (_locationUrlController.text.isNotEmpty)
-              _textFieldWidget(
-                _mapController,
-                "Map URL (optional)",
-                prefixIcon: Icons.map,
-              ),
+            // _textFieldWidget(_locationUrlController, "Enter Location"),
+            _textFieldWidgetLoc(_locationUrlController, "Enter Location"),
+            SizedBox(height: 13.sp),
+            _textFieldWidget(_mapController, "Add Map URL",
+                labelColor: AppColors.primaryColor, suffixIcon: Icons.link),
             SizedBox(height: 20.sp),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -446,6 +447,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
               ],
             ),
             SizedBox(height: 13.sp),
+
             SizedBox(
               height: (70 * _phoneNumberFields.length).toDouble(),
               child: ListView.builder(
@@ -649,6 +651,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       String? Function(String?)? validator,
       Color? labelColor,
       IconData? suffixIcon}) {
+<<<<<<< HEAD
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       child: TextFormField(
@@ -713,9 +716,65 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
+=======
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      onTap: () async {
+        // Navigate to Select Location page
+
+        Get.to(SelectLocationScreen());
+      },
+      style: GoogleFonts.manrope(
+        textStyle: TextStyle(
+          color: labelColor != null ? AppColors.primaryColor : Colors.black,
+          fontSize: 15.sp,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      decoration: InputDecoration(
+        contentPadding: const EdgeInsets.all(14),
+        hintText: hintText,
+        labelText: hintText,
+        labelStyle: GoogleFonts.manrope(
+          textStyle: TextStyle(
+            color: Colors.black,
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w500,
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
           ),
         ),
-        validator: validator,
+        fillColor: Colors.white,
+        filled: true,
+        hintStyle: GoogleFonts.manrope(
+          textStyle: TextStyle(
+            color: Colors.black,
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        prefixIcon: prefixIcon != null
+            ? Icon(
+                prefixIcon,
+                size: 17.sp,
+                color: Colors.grey.withOpacity(0.4),
+              )
+            : null,
+        suffixIcon: suffixIcon != null
+            ? Icon(
+                suffixIcon,
+                size: 18.sp,
+                color: Colors.grey.withOpacity(0.7),
+              )
+            : null,
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.black12),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.black12),
+          borderRadius: BorderRadius.circular(6),
+        ),
       ),
     );
   }
@@ -739,6 +798,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                 CountryCodePicker(
                   onChanged: (countryCode) {
                     setState(() {
+<<<<<<< HEAD
                       // Store country code without + symbol for consistency
                       selectedCountryCode =
                           countryCode.dialCode?.replaceAll('+', '') ?? '';
@@ -749,6 +809,9 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                             .replaceAll(RegExp(r'^\+?\d+\s*'), '');
                         phoneController.text = selectedCountryCode + number;
                       }
+=======
+                      selectedCountryCode = countryCode.dialCode!;
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
                     });
                   },
                   initialSelection: 'IN',
@@ -775,6 +838,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                   child: TextField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
+<<<<<<< HEAD
                     onChanged: (value) {
                       // Remove any non-digit characters from input
                       String digitsOnly = value.replaceAll(RegExp(r'\D'), '');
@@ -789,6 +853,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                         );
                       }
                     },
+=======
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       contentPadding:

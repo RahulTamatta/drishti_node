@@ -58,8 +58,7 @@ const {
   getNearbyVisible,
   getSocialMediaController,
   searchUsers,
-  getUser, // Import getUser from userController
-  createEventController // Import createEventController from userController
+  getUser // Import getUser from userController
 } = require("./userController");
 
 const { createAddressController } = require('../address/addressController'); // Import createAddressController from addressController
@@ -170,37 +169,5 @@ router.post(
   validate(addressSchema),
   createAddressController
 );
-
-router
-  .route("/createEvent")
-  .post(auth(ROLES.ALL), createEventController)
-  .all(methodNotAllowed);
-
-router
-.route("/search-user")
-.get(async (req, res) => {
-  try {
-    const { userName } = req.query;
-    
-    if (!userName && userName !== '') {
-      return createResponse(res, httpStatus.BAD_REQUEST, "Username parameter is required");
-    }
-
-    const users = await searchUsers(userName);
-    return createResponse(res, httpStatus.OK, "Users found", {
-      message: users.length > 0 ? "Users found" : "No users found",
-      data: users
-    });
-
-  } catch (error) {
-    console.error("Search user error:", error);
-    return createResponse(
-      res, 
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Error searching users"
-    );
-  }
-})
-.all(methodNotAllowed);
 
 module.exports = router;

@@ -232,6 +232,19 @@ class TeacherProfileScreenState extends State<TeacherProfileScreen>
                                       )
                                     ],
                                   ),
+<<<<<<< HEAD
+=======
+                                  //       Row(
+                                  //   children: [
+                                  //     Icon(
+                                  //       Icons.phone_in_talk,
+                                  //       size: 12,
+                                  //       color: Colors.grey,
+                                  //     ),
+                                  //     Text(widget.userDetails!.email.toString())
+                                  //   ],
+                                  // )
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
                                 ],
                               )
                             ],
@@ -283,7 +296,11 @@ class TeacherProfileScreenState extends State<TeacherProfileScreen>
           )),
           tabs: const [
             Tab(text: "Courses Created"),
+<<<<<<< HEAD
             // Tab(text: "Courses Attended"), // Commented out Courses Attended tab
+=======
+            Tab(text: "Courses Attended"),
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
           ],
         ),
         SizedBox(
@@ -292,10 +309,97 @@ class TeacherProfileScreenState extends State<TeacherProfileScreen>
             controller: _tabController,
             children: [
               // Content for "Courses Created" tab
+<<<<<<< HEAD
+=======
+
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
               BlocBuilder<AllEventBloc, AllEventState>(
                 builder: (context, state) {
                   if (state is AllEventLoadSuccess) {
                     final events = state.events.data?.data ?? [];
+<<<<<<< HEAD
+=======
+
+                    return Column(
+                      children: [
+                        Expanded(
+                            child: ListView.builder(
+                                padding: const EdgeInsets.all(0),
+                                shrinkWrap: true,
+                                itemCount: events
+                                    .length, // Use the actual length of events
+                                itemBuilder: (context, index) {
+                                  if (index < events.length) {
+                                    // Add this check
+                                    final EventData res = events[index];
+                                    if ((res.events?.isNotEmpty ?? false)) {
+                                      // Check if the date filter is applied
+                                      if (homeProvider.selectedDate != null) {
+                                        // Filter events based on the selected date
+                                        res.events!.where((event) {
+                                          // Parse the dateTo string to DateTime
+                                          DateTime? eventDate = event.dateTo;
+                                          if (eventDate == null) return false;
+                                          return formatDate(eventDate) ==
+                                              formatDate(
+                                                  homeProvider.selectedDate!);
+                                        }).toList();
+
+                                        // Use filteredEvents if needed
+                                      }
+
+                                      if (res.events != null &&
+                                          res.events!.isNotEmpty) {
+                                        DateTime dateTime =
+                                            res.events![0].dateFrom!;
+                                        String formattedDate =
+                                            DateFormat('yyyy-MM-dd')
+                                                .format(dateTime);
+
+                                        return GestureDetector(
+                                          onTap: () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    TeacherCourseDetailsScreen(
+                                                        event: res.events![0],
+                                                        userID: userID),
+                                              ),
+                                            );
+                                          },
+                                          child: courseDetailsCard(
+                                            width: width.sp,
+                                            courseName: res.events![0].title![0]
+                                                .toString(),
+                                            courseDate: formattedDate,
+                                            coursetime: res
+                                                .events![0].durationTo
+                                                .toString(),
+                                            courseStartsIn: "Start in 2 hours",
+                                            courseMode: 'Online',
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  }
+                                  return null;
+                                }))
+                      ],
+                    );
+                  } else {
+                    return eventShimmerEffect();
+                  }
+                },
+              ),
+              CoursesAttendedScreen(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 
                     return Column(
                       children: [

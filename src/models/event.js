@@ -33,7 +33,11 @@ const eventSchema = new mongoose.Schema(
     recurring: Boolean,
     description: String,
     address: [],
+<<<<<<< HEAD
     phoneNumber: [{ type: String }],
+=======
+    phoneNumber: String,
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
     registrationLink: String,
     location: {
       type: { type: String, enum: ["Point"], default: "Point" },

@@ -141,14 +141,20 @@ void main() async {
 
   Bloc.observer = AppBlocObserver();
 
+<<<<<<< HEAD
   final profileService = ProfileService();
   final profileRepository =
       ProfileRepositoryImpl(profileService: profileService);
   final authRepository = AuthRepositoryImp();
   final eventsRepository = AllEventsRepositoryImpl();
+=======
+  final profileService =
+      ProfileService(); // Create an instance of ProfileService
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
 
-  runApp(MultiProvider(
+  runApp(MultiBlocProvider(
     providers: [
+<<<<<<< HEAD
       // ChangeNotifierProviders
       ChangeNotifierProvider(create: (_) => CourseSelectionProvider()),
       ChangeNotifierProvider(create: (_) => LocationProvider()),
@@ -183,6 +189,30 @@ void main() async {
       BlocProvider(create: (_) => CreateEventBloc(eventsRepository)),
       BlocProvider(create: (_) => AuthenticationBloc(authRepository)),
       BlocProvider(create: (_) => AllEventBloc(eventsRepository)),
+=======
+      ChangeNotifierProvider(create: (context) => CourseSelectionProvider()),
+      ChangeNotifierProvider(create: (context) => LocationProvider()),
+      ChangeNotifierProvider(create: (context) => AddressProvider()),
+      ChangeNotifierProvider(
+          create: (context) => CreateEventProvider(CreateEventModel())),
+      ChangeNotifierProvider(create: (context) => CourseListProvider()),
+      ChangeNotifierProvider(create: (context) => BottomSheetContentProvider()),
+      ChangeNotifierProvider(create: (context) => HomeProvider()),
+      ChangeNotifierProvider(create: (context) => TeacherProvider(TData())),
+      BlocProvider(create: (context) => UserLocationBloc()),
+      BlocProvider(
+          create: (context) => ProfileDetailsBloc(
+              ProfileRepositoryImpl(profileService: profileService))),
+      BlocProvider(
+          create: (context) => ProfileBloc(
+              ProfileRepositoryImpl(profileService: profileService))),
+      BlocProvider(
+          create: (context) => CreateEventBloc(AllEventsRepositoryImpl())),
+      BlocProvider(
+          create: (context) => AuthenticationBloc(AuthRepositoryImp())),
+      BlocProvider(
+          create: (context) => AllEventBloc(AllEventsRepositoryImpl())),
+>>>>>>> parent of 283b956a (latest update .create course is remaining)
     ],
     child: const MyApp(),
   ));
