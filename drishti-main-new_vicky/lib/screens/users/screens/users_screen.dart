@@ -29,22 +29,13 @@ class UsersScreenState extends State<UsersScreen> {
   //flutter bloc for hiting api
   ApiBloc apiBloc = ApiBloc();
 
-  data(String userName) {
-    // Don't send requests with empty usernames
-    if (userName.trim().isEmpty) {
-      // Initialize with empty state instead of calling API
-      apiBloc.add(GetAndSearch(userName: "defaultuser"));
-      return;
-    }
+  data(userName) {
     apiBloc.add(GetAndSearch(userName: userName));
   }
 
   @override
   void initState() {
-    // Start with a default search or show a message
-    // Using a placeholder value to avoid the 500 error
-    _searchController.text = "defaultuser";
-    data(_searchController.text);
+    data("");
     super.initState();
   }
 
@@ -55,17 +46,8 @@ class UsersScreenState extends State<UsersScreen> {
       child: BlocListener<ApiBloc, BlocState>(
         listener: (context, state) {
           if (state is Error) {
-            // Improve error handling - don't show toast for expected errors
-            if (state.message!.contains("500")) {
-              // Handle 500 error silently or with a user-friendly message
-              showToast(
-                  text: "Search function is temporarily unavailable",
-                  color: Colors.orange,
-                  context: context);
-            } else {
-              showToast(
-                  text: state.message!, color: Colors.red, context: context);
-            }
+            showToast(
+                text: state.message!, color: Colors.red, context: context);
           }
         },
         child: BlocBuilder<ApiBloc, BlocState>(

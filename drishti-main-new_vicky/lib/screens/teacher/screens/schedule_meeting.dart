@@ -35,18 +35,14 @@ class ScheduleMeetingScreen extends StatefulWidget {
 class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   Set<OfflineOnlineOption> _selectedOption = {}; // Changed to a Set
 
-  // Rename variable to reflect it stores a link, not just an ID
-  final TextEditingController _meetingLinkController = TextEditingController();
+  final TextEditingController _meetingIDController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _mapController = TextEditingController();
   final TextEditingController _locationUrlController = TextEditingController();
   final TextEditingController _teacherNameController = TextEditingController();
-  final TextEditingController _registrationLinkController =
-      TextEditingController();
+  final TextEditingController _registrationLinkController = TextEditingController();
 
-  final List<TextEditingController> _phoneNumberControllers = [
-    TextEditingController()
-  ];
+  final List<TextEditingController> _phoneNumberControllers = [TextEditingController()];
   List<String> addedTeachers = [];
   List<String> addedTeachersName = [];
 
@@ -58,12 +54,11 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   void initState() {
     super.initState();
     _addPhoneNumberField();
-
+    
     // Initialize providers with nullable fields
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final createEventProvider =
-          Provider.of<CreateEventProvider>(context, listen: false);
-
+      final createEventProvider = Provider.of<CreateEventProvider>(context, listen: false);
+      
       // Initialize event model with null values for optional fields
       createEventProvider.createEventModel;
     });
@@ -83,7 +78,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   void dispose() {
     super.dispose();
     _descriptionController.dispose();
-    _meetingLinkController.dispose();
+    _meetingIDController.dispose();
     _mapController.dispose();
     _locationUrlController.dispose();
     for (var controller in _phoneNumberControllers) {
@@ -91,10 +86,10 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     }
   }
 
-  void _submitForm(
-      CreateEventProvider createEventProvider, BuildContext mcontext) async {
+
+void _submitForm(CreateEventProvider createEventProvider, BuildContext mcontext) async {
     // Validate AOL first
-    if (createEventProvider.createEventModel.aol == null ||
+    if (createEventProvider.createEventModel.aol == null || 
         createEventProvider.createEventModel.aol!.isEmpty) {
       showToast(
         text: "Please select an event type",
@@ -104,8 +99,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
       return;
     }
 
-    final addressProvider =
-        Provider.of<AddressProvider>(context, listen: false);
+    final addressProvider = Provider.of<AddressProvider>(context, listen: false);
     final lat = addressProvider.latitude;
     final lng = addressProvider.longitude;
 
@@ -145,49 +139,24 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
     try {
       // Update event model with validated data
-      createEventProvider.createEventModel.mode =
-          _selectedOption.map((option) => option.name).join(',');
-
+      createEventProvider.createEventModel.mode = _selectedOption.map((option) => option.name).join(',');
+      
       // Make sure we have an AOL value
-      if (createEventProvider.createEventModel.aol == null ||
+      if (createEventProvider.createEventModel.aol == null || 
           createEventProvider.createEventModel.aol!.isEmpty) {
         throw Exception("Event type (AOL) is required");
       }
 
-      // Always set meeting link if it's provided, regardless of mode
-      if (_meetingLinkController.text.isNotEmpty) {
-        createEventProvider.createEventModel.meetingLink =
-            _meetingLinkController.text;
-      } else if (_selectedOption.contains(OfflineOnlineOption.online)) {
-        // Only validate required meeting link for online events
-        throw Exception("Meeting link is required for online events");
-      }
-
-      createEventProvider.createEventModel.description =
-          _descriptionController.text;
-      createEventProvider.createEventModel.registrationLink =
-          _registrationLinkController.text;
+      createEventProvider.createEventModel.meetingLink = _selectedOption.contains(OfflineOnlineOption.online) ? _meetingIDController.text : null;
+      createEventProvider.createEventModel.description = _descriptionController.text;
+      createEventProvider.createEventModel.registrationLink = _registrationLinkController.text;
       createEventProvider.createEventModel.teachers = addedTeachers;
-
-      // Ensure phoneNumber is a string
-      String phoneNumber = _phoneNumberControllers
-              .map((controller) => controller.text.trim())
-              .where((number) => number.isNotEmpty)
-              .firstOrNull ??
-          "";
-
       createEventProvider.createEventModel.phoneNumber = phoneNumber;
-
-      createEventProvider.createEventModel.address = [
-        _locationUrlController.text
-      ];
+      createEventProvider.createEventModel.address = [_locationUrlController.text];
 
       // Only include coordinates if location is provided
       if (lat != null && lng != null) {
-        createEventProvider.createEventModel.coordinates = [
-          lng,
-          lat
-        ]; // Note: API expects [longitude, latitude]
+        createEventProvider.createEventModel.coordinates = [lng, lat]; // Note: API expects [longitude, latitude]
       }
 
       if (mounted) {
@@ -198,8 +167,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
         Navigator.push(
           context,
-          MaterialPageRoute(
-              builder: (context) => const BottomNavigationScreen()),
+          MaterialPageRoute(builder: (context) => const BottomNavigationScreen()),
         );
       }
     } catch (e) {
@@ -263,7 +231,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
     // Validate meeting link for online events
     if (_selectedOption.contains(OfflineOnlineOption.online)) {
-      if (_meetingLinkController.text.isEmpty) {
+      if (_meetingIDController.text.isEmpty) {
         showToast(
           text: "Please provide a meeting link for online event",
           color: Colors.red,
@@ -283,8 +251,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
   Widget build(BuildContext context) {
     // Get providers with null safety
     final addressProvider = Provider.of<AddressProvider>(context, listen: true);
-    final createEventProvider =
-        Provider.of<CreateEventProvider>(context, listen: true);
+    final createEventProvider = Provider.of<CreateEventProvider>(context, listen: true);
     final teacherProvider = Provider.of<TeacherProvider>(context, listen: true);
 
     // Safely handle addresses
@@ -296,10 +263,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
         firstAddress.subLocality,
         firstAddress.administrativeArea,
         firstAddress.postalCode,
-      ]
-          .where((component) => component != null && component.isNotEmpty)
-          .join(' ');
-
+      ].where((component) => component != null && component.isNotEmpty).join(' ');
+      
       if (addressComponents.isNotEmpty) {
         _locationUrlController.text = addressComponents;
       }
@@ -387,7 +352,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                   Visibility(visible: isEnd, child: TimeDropdown1()),
                 ]),
             SizedBox(height: 13.sp),
-            _textFieldWidget(_meetingLinkController, "Meeting Link",
+            _textFieldWidget(_meetingIDController, "Meeting ID",
                 labelColor: AppColors.primaryColor),
             SizedBox(height: 13.sp),
             _textFieldWidget(
@@ -665,11 +630,12 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
     );
   }
 
-  Widget _textFieldWidgetLoc(TextEditingController controller, String hintText,
-      {IconData? prefixIcon,
-      String? Function(String?)? validator,
-      Color? labelColor,
-      IconData? suffixIcon}) {
+  Widget _textFieldWidgetLoc(TextEditingController controller, String hintText, {
+    IconData? prefixIcon,
+    String? Function(String?)? validator,
+    Color? labelColor,
+    IconData? suffixIcon
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       child: TextFormField(
@@ -689,46 +655,41 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
               try {
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) => const SelectLocationScreen()),
+                  MaterialPageRoute(builder: (context) => const SelectLocationScreen()),
                 );
 
                 if (result != null && result is Map<String, dynamic>) {
                   setState(() {
-                    _locationUrlController.text =
-                        result['formattedAddress'] ?? '';
-
+                    _locationUrlController.text = result['formattedAddress'] ?? '';
+                    
                     // Store the coordinates in the provider for later use
-                    final AddressProvider addressProvider =
-                        Provider.of<AddressProvider>(context, listen: false);
+                    final AddressProvider addressProvider = Provider.of<AddressProvider>(context, listen: false);
                     addressProvider.updatePosition(
-                        lat: result['coordinates']?['lat'] ?? 0.0,
-                        long: result['coordinates']?['lng'] ?? 0.0,
-                        address: result['fullAddress'] != null
-                            ? [
-                                Placemark(
-                                    name: result['street'] ?? '',
-                                    locality: result['city'] ?? '',
-                                    administrativeArea: result['state'] ?? '',
-                                    postalCode: result['postalCode'] ?? '',
-                                    country: result['country'] ?? '')
-                              ]
-                            : []);
+                      lat: result['coordinates']?['lat'] ?? 0.0,
+                      long: result['coordinates']?['lng'] ?? 0.0,
+                      address: result['fullAddress'] != null ? [Placemark(
+                        name: result['street'] ?? '',
+                        locality: result['city'] ?? '',
+                        administrativeArea: result['state'] ?? '',
+                        postalCode: result['postalCode'] ?? '',
+                        country: result['country'] ?? ''
+                      )] : []
+                    );
 
                     // Update map URL after location is selected
                     final lat = result['coordinates']?['lat'];
                     final lng = result['coordinates']?['lng'];
                     if (lat != null && lng != null) {
-                      _mapController.text =
-                          'https://www.google.com/maps?q=$lat,$lng';
+                      _mapController.text = 'https://www.google.com/maps?q=$lat,$lng';
                     }
                   });
                 }
               } catch (e) {
                 showToast(
-                    text: "Error selecting location: ${e.toString()}",
-                    color: Colors.red,
-                    context: context);
+                  text: "Error selecting location: ${e.toString()}",
+                  color: Colors.red,
+                  context: context
+                );
               }
             },
           ),
@@ -761,13 +722,11 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                   onChanged: (countryCode) {
                     setState(() {
                       // Store country code without + symbol for consistency
-                      selectedCountryCode =
-                          countryCode.dialCode?.replaceAll('+', '') ?? '';
-
+                      selectedCountryCode = countryCode.dialCode?.replaceAll('+', '') ?? '';
+                      
                       // Update the phone number with new country code if there's already a number
                       if (phoneController.text.isNotEmpty) {
-                        String number = phoneController.text
-                            .replaceAll(RegExp(r'^\+?\d+\s*'), '');
+                        String number = phoneController.text.replaceAll(RegExp(r'^\+?\d+\s*'), '');
                         phoneController.text = selectedCountryCode + number;
                       }
                     });
@@ -799,8 +758,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                     onChanged: (value) {
                       // Remove any non-digit characters from input
                       String digitsOnly = value.replaceAll(RegExp(r'\D'), '');
-                      if (selectedCountryCode.isNotEmpty &&
-                          !digitsOnly.startsWith(selectedCountryCode)) {
+                      if (selectedCountryCode.isNotEmpty && !digitsOnly.startsWith(selectedCountryCode)) {
                         digitsOnly = selectedCountryCode + digitsOnly;
                       }
                       if (value != digitsOnly) {
@@ -812,8 +770,7 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
                     },
                     decoration: InputDecoration(
                       border: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 8.0),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
                       hintText: 'Enter phone number',
                       hintStyle: GoogleFonts.poppins(
                         textStyle: TextStyle(

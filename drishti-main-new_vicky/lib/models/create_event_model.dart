@@ -1,36 +1,36 @@
 class CreateEventModel {
-  List<String>? title;
   String? mode;
   List<String>? aol;
+  List<String>? title;
   EventDateTime? date;
-  String? timeOffset;
+  bool? recurring;
   String? durationFrom;
   String? durationTo;
-  bool? recurring;
-  String? description;
-  String? phoneNumber; // Changed from List<String> to String
+  String? timeOffset;
   String? meetingLink;
-  String? registrationLink;
-  List<String>? teachers;
+  String? phoneNumber;
   List<String>? address;
-  List<dynamic>? coordinates;
+  String? description;
+  String? registrationLink;
+  List<double>? coordinates;
+  List<String>? teachers;
 
   CreateEventModel({
-    this.title,
     this.mode,
     this.aol,
+    this.title,
     this.date,
-    this.timeOffset,
+    this.recurring,
     this.durationFrom,
     this.durationTo,
-    this.recurring,
-    this.description,
-    this.phoneNumber,
+    this.timeOffset,
     this.meetingLink,
-    this.registrationLink,
-    this.teachers,
+    this.phoneNumber,
     this.address,
+    this.description,
+    this.registrationLink,
     this.coordinates,
+    this.teachers,
   });
 
   // Validate required fields and data types
@@ -64,47 +64,55 @@ class CreateEventModel {
     return null;
   }
 
-  // Factory constructor to create a CreateEventModel from JSON
-  factory CreateEventModel.fromJson(Map<String, dynamic> json) {
-    return CreateEventModel(
-      title: json['title'] != null ? List<String>.from(json['title']) : null,
-      mode: json['mode'],
-      aol: json['aol'] != null ? List<String>.from(json['aol']) : null,
-      date: json['date'] != null ? EventDateTime.fromJson(json['date']) : null,
-      timeOffset: json['timeOffset'],
-      durationFrom: json['durationFrom'],
-      durationTo: json['durationTo'],
-      recurring: json['recurring'],
-      description: json['description'],
-      phoneNumber: json['phoneNumber'], // Now expecting a string
-      meetingLink: json['meetingLink'],
-      registrationLink: json['registrationLink'],
-      teachers:
-          json['teachers'] != null ? List<String>.from(json['teachers']) : null,
-      address:
-          json['address'] != null ? List<String>.from(json['address']) : null,
-      coordinates: json['coordinates'],
-    );
+  CreateEventModel.fromJson(Map<String, dynamic> json) {
+    mode = json['mode'];
+    aol = json['aol'] != null ? List<String>.from(json['aol']) : null;
+    title = json['title'] != null ? List<String>.from(json['title']) : null;
+    date = json['date'] != null ? EventDateTime.fromJson(json['date']) : null;
+    recurring = json['recurring'];
+    durationFrom = json['durationFrom'];
+    durationTo = json['durationTo'];
+    timeOffset = json['timeOffset'];
+    meetingLink = json['meetingLink'];
+    phoneNumber = json['phoneNumber'];
+    address = json['address'] != null ? List<String>.from(json['address']) : null;
+    description = json['description'];
+    registrationLink = json['registrationLink'];
+    coordinates = json['coordinates'] != null 
+        ? (json['coordinates'] is Map 
+            ? List<double>.from(json['coordinates']['coordinates']) 
+            : List<double>.from(json['coordinates']))
+        : null;
+    teachers = json['teachers'] != null ? List<String>.from(json['teachers']) : null;
   }
 
-  // Method to convert CreateEventModel to JSON
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = {};
-    if (title != null) data['title'] = title;
-    if (mode != null) data['mode'] = mode;
-    if (aol != null) data['aol'] = aol;
-    if (date != null) data['date'] = date!.toJson();
-    if (timeOffset != null) data['timeOffset'] = timeOffset;
-    if (durationFrom != null) data['durationFrom'] = durationFrom;
-    if (durationTo != null) data['durationTo'] = durationTo;
-    if (recurring != null) data['recurring'] = recurring;
-    if (description != null) data['description'] = description;
-    if (phoneNumber != null) data['phoneNumber'] = phoneNumber;
-    if (meetingLink != null) data['meetingLink'] = meetingLink;
-    if (registrationLink != null) data['registrationLink'] = registrationLink;
-    if (teachers != null) data['teachers'] = teachers;
-    if (address != null) data['address'] = address;
-    if (coordinates != null) data['coordinates'] = coordinates;
+    final Map<String, dynamic> data = {
+      'title': title ?? [],
+      'mode': mode ?? 'offline',
+      'aol': aol ?? [],
+      'date': date?.toJson() ?? {
+        'from': DateTime.now().toIso8601String(),
+        'to': DateTime.now().toIso8601String()
+      },
+      'timeOffset': timeOffset ?? 'UTC+05:30',
+      'duration': [{
+        'from': durationFrom ?? '09:00AM',
+        'to': durationTo ?? '12:00PM'
+      }],
+      'meetingLink': meetingLink ?? '',
+      'recurring': recurring ?? false,
+      'description': description ?? '',
+      'address': address ?? [],
+      'phoneNumber': phoneNumber ?? '', // Send as string
+      'registrationLink': registrationLink ?? '',
+      'location': {
+        'type': 'Point',
+        'coordinates': coordinates ?? [0, 0]
+      },
+      'teachers': teachers ?? []
+    };
+
     return data;
   }
 
@@ -122,7 +130,7 @@ class CreateEventModel {
     List<String>? address,
     String? description,
     String? registrationLink,
-    List<dynamic>? coordinates,
+    List<double>? coordinates,
     List<String>? teachers,
   }) {
     return CreateEventModel(
