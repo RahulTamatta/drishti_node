@@ -1,5 +1,4 @@
 import 'package:srisridrishti/handler/responses/all_events_response.dart';
-import 'package:srisridrishti/utils/shared_preference_helper.dart';
 
 import '../../models/create_event_model.dart';
 import '../../services/events_services/create_event_service.dart';
@@ -27,18 +26,7 @@ class AllEventsRepositoryImpl implements AllEventsRepository {
       required String? edit,
       required String? eventId}) async {
     try {
-      String? token = await SharedPreferencesHelper.getAccessToken() ?? 
-                     await SharedPreferencesHelper.getRefreshToken();
-      if (token == null) {
-        throw Exception('No authentication token available');
-      }
-      
-      return await CreateEventService().createEvent(
-        event: event,
-        token: token,
-        edit: edit,
-        eventId: eventId
-      );
+      return await CreateEventService().createEvent(event, edit, eventId);
     } catch (error) {
       return false;
     }

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class CreateEventModel {
   String? mode;
   List<String>? aol;
@@ -7,8 +5,11 @@ class CreateEventModel {
   EventDateTime? date; // Renamed to avoid conflict
   bool? recurring;
   String? durationFrom;
+<<<<<<< HEAD
   List<Map<String, String>>? duration;
 
+=======
+>>>>>>> parent of f9353431 (bug)
   String? durationTo;
   String? timeTitle;
   String? timeOffset;
@@ -72,33 +73,42 @@ class CreateEventModel {
 <<<<<<< HEAD
 <<<<<<< HEAD
     phoneNumber = json['phoneNumber'] != null ? [json['phoneNumber']] : null;
+<<<<<<< HEAD
     address =
         json['address'] != null ? List<String>.from(json['address']) : null;
 =======
     phoneNumber = json['phoneNumber'];
     address = List<String>.from(json['address']);
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
+    address = json['address'] != null ? List<String>.from(json['address']) : null;
+>>>>>>> parent of f9353431 (bug)
     description = json['description'];
     mapUrl = json['mapUrl'];
     registrationLink = json['registrationLink'];
+<<<<<<< HEAD
 <<<<<<< HEAD
     coordinates = json['coordinates'] != null
         ? List<double>.from(json['coordinates'])
         : null;
     teachers =
         json['teachers'] != null ? List<String>.from(json['teachers']) : null;
+=======
+    coordinates = json['coordinates'] != null ? List<double>.from(json['coordinates']) : null;
+    teachers = json['teachers'] != null ? List<String>.from(json['teachers']) : null;
+>>>>>>> parent of f9353431 (bug)
   }
 
   Map<String, dynamic> toJson() {
-    debugPrint('CreateEventModel: Converting to JSON');
-    final Map<String, dynamic> data = <String, dynamic>{};
-
-    // Add required fields
-    data['aol'] = aol ?? ['course'];
+    final Map<String, dynamic> data = {};
+    
     if (mode != null) data['mode'] = mode;
+    if (aol != null && aol!.isNotEmpty) data['aol'] = aol;
     if (title != null && title!.isNotEmpty) data['title'] = title;
+    if (timeTitle != null) data['timeTitle'] = timeTitle;
     if (date != null) data['date'] = date!.toJson();
     if (recurring != null) data['recurring'] = recurring;
+<<<<<<< HEAD
 
     // Duration handling with time format validation
     if (durationFrom != null && durationTo != null) {
@@ -108,6 +118,11 @@ class CreateEventModel {
     }
 
     // Add optional fields
+=======
+    if (durationFrom != null) data['durationFrom'] = durationFrom;
+    if (durationTo != null) data['durationTo'] = durationTo;
+    if (timeOffset != null) data['timeOffset'] = timeOffset;
+>>>>>>> parent of f9353431 (bug)
     if (meetingLink != null) data['meetingLink'] = meetingLink;
     if (phoneNumber != null && phoneNumber!.isNotEmpty) {
       data['phoneNumber'] = phoneNumber![0];
@@ -115,10 +130,9 @@ class CreateEventModel {
     if (address != null && address!.isNotEmpty) data['address'] = address;
     if (description != null) data['description'] = description;
     if (registrationLink != null) data['registrationLink'] = registrationLink;
-    if (coordinates != null && coordinates!.isNotEmpty) {
-      data['coordinates'] = coordinates;
-    }
+    if (coordinates != null && coordinates!.isNotEmpty) data['coordinates'] = coordinates;
     if (teachers != null && teachers!.isNotEmpty) data['teachers'] = teachers;
+<<<<<<< HEAD
 
     debugPrint('Final JSON data: $data');
     return data;
@@ -140,6 +154,10 @@ class CreateEventModel {
       return '${hour.toString().padLeft(2, '0')}:$minute';
     }
     return time;
+=======
+    
+    return data;
+>>>>>>> parent of f9353431 (bug)
   }
 
 =======

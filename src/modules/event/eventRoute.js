@@ -6,7 +6,7 @@ const auth = require("../../middleware/authentication");
 const { ROLES } = require("../../common/utils/constants");
 const methodNotAllowed = require("../../middleware/methodNotAllowed");
 router
-  .route("/create")
+  .route("/")
   .post(
     [auth(ROLES.TEACHER), validate(createEventV)],
     eventController.createEvent

@@ -17,22 +17,15 @@ const eventSchema = new mongoose.Schema(
     timeOffset: String,
     duration: [
       {
-        from: { 
-          type: String, 
-          required: true,
-          enum: TIME_INTERVALS 
-        },
-        to: { 
-          type: String,
-          required: true, 
-          enum: TIME_INTERVALS 
-        },
+        from: { type: String, enum: TIME_INTERVALS },
+        to: { type: String, enum: TIME_INTERVALS },
       },
     ],
     meetingLink: { type: String, trim: true },
     recurring: Boolean,
     description: String,
     address: [],
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
     phoneNumber: [{ type: String }],
@@ -42,6 +35,10 @@ const eventSchema = new mongoose.Schema(
 =======
     phoneNumber: String,
 >>>>>>> parent of 283b956a (latest update .create course is remaining)
+=======
+ // In the Event model schema
+phoneNumber: [{ type: String }], // Changed from String to array of strings
+>>>>>>> parent of f9353431 (bug)
     registrationLink: String,
     location: {
       type: { type: String, enum: ["Point"], default: "Point" },

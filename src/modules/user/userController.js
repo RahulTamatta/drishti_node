@@ -662,59 +662,10 @@ const createAddressController = async (req, res) => {
 <<<<<<< HEAD
 const createEventController = async (req, res) => {
   try {
-    // Format duration fields before creating event
-    if (req.body.durationFrom) {
-      // Convert 12-hour format to 24-hour format
-      const [time, period] = req.body.durationFrom.split(/([AMP]M)/);
-      const [hours, minutes] = time.split(':');
-      let hour = parseInt(hours);
-      
-      if (period === 'PM' && hour < 12) hour += 12;
-      if (period === 'AM' && hour === 12) hour = 0;
-      
-      req.body.durationFrom = `${hour.toString().padStart(2, '0')}:${minutes}`;
-    }
-
-    if (req.body.durationTo) {
-      // Convert 12-hour format to 24-hour format
-      const [time, period] = req.body.durationTo.split(/([AMP]M)/);
-      const [hours, minutes] = time.split(':');
-      let hour = parseInt(hours);
-      
-      if (period === 'PM' && hour < 12) hour += 12;
-      if (period === 'AM' && hour === 12) hour = 0;
-      
-      req.body.durationTo = `${hour.toString().padStart(2, '0')}:${minutes}`;
-    }
-
     const event = await userService.createEventService(req);
     return createResponse(res, httpStatus.CREATED, 'Event created successfully', event);
   } catch (error) {
-    console.error('Create event error:', error);
-    return createResponse(
-      res, 
-      error.status || httpStatus.INTERNAL_SERVER_ERROR, 
-      error.message || 'Failed to create event'
-    );
-  }
-};
-
-createEvent = async (request, response) => {
-  console.log('Creating event with data:', request.body);
-  try {
-    // Validate time format
-    const timeValidationResult = validateTimeFormat(request.body.durationFrom, request.body.durationTo);
-    if (!timeValidationResult.isValid) {
-      console.error('Time validation failed:', timeValidationResult.error);
-      throw new appError(httpStatus.BAD_REQUEST, timeValidationResult.error);
-    }
-    
-    console.log('Time validation passed, proceeding with event creation');
-    // ...existing code...
-    
-  } catch (error) {
-    console.error('Event creation failed:', error);
-    // ...existing code...
+    return createResponse(res, error.status || httpStatus.INTERNAL_SERVER_ERROR, error.message || 'Failed to create event');
   }
 };
 

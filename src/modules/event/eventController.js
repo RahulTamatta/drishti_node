@@ -6,55 +6,13 @@ const createResponse = require("../../common/utils/createResponse");
 
 const createEvent = async (request, response) => {
   try {
-    console.log("Received request to create event:", request.body);
-
-    // Validate duration format
-    if (!request.body.duration || !Array.isArray(request.body.duration) || request.body.duration.length === 0) {
-      throw new appError(httpStatus.BAD_REQUEST, request.t("Event.DurationRequired"));
-    }
-
-    // Ensure each duration object has from and to fields
-    request.body.duration.forEach((duration, index) => {
-      if (!duration.from || !duration.to) {
-        throw new appError(
-          httpStatus.BAD_REQUEST,
-          `Duration at index ${index} must have both 'from' and 'to' fields`
-        );
-      }
-    });
-
-    // Format the times to ensure proper 24-hour format
-    request.body.duration = request.body.duration.map(duration => {
-      const formatTime = (timeStr) => {
-        if (!timeStr) return timeStr;
-        const [time, period] = timeStr.split(/([AMP]M)/);
-        const [hours, minutes] = time.split(':');
-        let hour = parseInt(hours);
-        
-        if (period === 'PM' && hour < 12) hour += 12;
-        if (period === 'AM' && hour === 12) hour = 0;
-        
-        return `${hour.toString().padLeft(2, '0')}:${minutes}`;
-      };
-
-      return {
-        from: formatTime(duration.from),
-        to: formatTime(duration.to)
-      };
-    });
-
     const data = await eventService.createEvent(request);
-    console.log("Event service response:", data);
-
     if (!data) {
-      console.log("Event creation failed: No data returned");
       throw new appError(
         httpStatus.CONFLICT,
         request.t("event.UnableToCreateEvent")
       );
     }
-
-    console.log("Event created successfully:", data);
     createResponse(
       response,
       httpStatus.OK,
@@ -62,12 +20,8 @@ const createEvent = async (request, response) => {
       data
     );
   } catch (error) {
-    console.error("Error creating event:", error);
-    createResponse(
-      response,
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "An unexpected error occurred"
-    );
+    console.log("error----------", error);
+    createResponse(response, error.status, error.message);
   }
 };
 
