@@ -39,7 +39,7 @@ class CreateEventService {
       }
 
       // Prepare request body matching MongoDB schema
-      final Map eventData = {
+      final Map<String, dynamic> eventData = {
         "title": model.title,
         "mode": model.mode?.toLowerCase(),
         "aol": model.aol,
@@ -56,9 +56,8 @@ class CreateEventService {
         ],
         "recurring": model.recurring ?? false,
         "description": model.description,
-        // Fixed: Ensure phoneNumber is always an array of strings
-        "phoneNumber":
-            model.phoneNumber != null ? [model.phoneNumber.toString()] : [],
+        // Fixed: Ensure phoneNumber is always a string
+        "phoneNumber": model.phoneNumber ?? "",
         "address": model.address ?? [],
       };
 
@@ -76,14 +75,11 @@ class CreateEventService {
         eventData["teachers"] = model.teachers;
       }
 
-      // Only add location if coordinates are valid
+      // Only add coordinates directly instead of nested in a location object
       if (model.coordinates != null &&
           model.coordinates!.length == 2 &&
           _validateCoordinates(model.coordinates![0], model.coordinates![1])) {
-        eventData["location"] = {
-          "type": "Point",
-          "coordinates": model.coordinates
-        };
+        eventData["coordinates"] = model.coordinates;
       }
 
       print("Request Body: ${json.encode(eventData)}");

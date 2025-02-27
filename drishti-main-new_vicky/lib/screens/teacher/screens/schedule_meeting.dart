@@ -184,10 +184,8 @@ class _ScheduleMeetingScreenState extends State<ScheduleMeetingScreen> {
 
       // Only include coordinates if location is provided
       if (lat != null && lng != null) {
-        createEventProvider.createEventModel.coordinates = [
-          lng,
-          lat
-        ]; // Note: API expects [longitude, latitude]
+        // Put coordinates in the format the API expects
+        createEventProvider.createEventModel.coordinates = [lng, lat];
       }
 
       if (mounted) {

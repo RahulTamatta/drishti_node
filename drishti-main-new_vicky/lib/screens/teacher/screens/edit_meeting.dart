@@ -148,9 +148,10 @@ class _EditMeetingScreenState extends State<EditMeetingScreen> {
       createEventProvider.createEventModel.teachers =
           //  [''] +
           addedTeachers;
+      // Store coordinates directly without wrapping in a location object
       createEventProvider.createEventModel.coordinates = [
-        position.latitude,
-        position.longitude
+        position.longitude,
+        position.latitude
       ];
       createEventProvider.createEventModel.phoneNumber = phoneNumber;
       createEventProvider.createEventModel.address = [
