@@ -2,6 +2,8 @@ import 'package:bloc/bloc.dart';
 import 'package:srisridrishti/bloc/profile_details_bloc/profile_details_event.dart';
 import 'package:srisridrishti/bloc/profile_details_bloc/profile_details_state.dart';
 import 'package:srisridrishti/handler/responses/profile_details_response.dart';
+import 'package:srisridrishti/models/user_details_model.dart';
+import 'package:srisridrishti/utils/shared_preference_helper.dart';
 
 import '../../repos/profile_repo/profile_repository.dart';
 
@@ -34,6 +36,24 @@ class ProfileDetailsBloc
               success: false, data: null, message: error.toString()),
         ),
       );
+    }
+  }
+
+  Future<UserDetailsModel?> getUserDetails() async {
+    try {
+      final token = await SharedPreferencesHelper.getAccessToken();
+      if (token == null) {
+        throw Exception('No access token found');
+      }
+
+      final profileResponse = await _profileRepository.getProfileDetails();
+      if (profileResponse.success && profileResponse.data != null) {
+        return profileResponse.data;
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching user details: $e');
+      return null;
     }
   }
 }

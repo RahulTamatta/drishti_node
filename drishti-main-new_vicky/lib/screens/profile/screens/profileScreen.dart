@@ -30,6 +30,7 @@ class ProfileScreen extends StatefulWidget {
 
 class ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
+  bool _isOnboarded = false; // Add this variable
   final _formKey = GlobalKey<FormState>();
   bool _isRefreshing = false;
 
@@ -49,7 +50,22 @@ class ProfileScreenState extends State<ProfileScreen> {
     _isTeacher = false;
 
     _fetchProfileDetails();
+    _checkOnboardingStatus();
     super.initState();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    try {
+      final userDetails =
+          await context.read<ProfileDetailsBloc>().getUserDetails();
+      setState(() {
+        _isOnboarded = userDetails?.isOnboarded ?? false;
+        _isEditing =
+            !_isOnboarded; // Automatically enable editing for new users
+      });
+    } catch (e) {
+      print('Error checking onboarding status: $e');
+    }
   }
 
   Future<void> _fetchProfileDetails() async {
@@ -105,14 +121,19 @@ class ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(_isEditing ? 'Edit Profile' : 'My Profile',
+        leading: _isOnboarded
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
+        title: Text(
+            _isOnboarded
+                ? (_isEditing ? 'Edit Profile' : 'My Profile')
+                : 'Complete Profile',
             style: const TextStyle(color: Colors.black)),
         actions: [
-          if (!_isEditing)
+          if (_isOnboarded)
             IconButton(
               icon: const Icon(Icons.edit, color: Colors.black),
               onPressed: () => setState(() => _isEditing = true),
@@ -146,6 +167,11 @@ class ProfileScreenState extends State<ProfileScreen> {
           if (state is ProfileDetailsLoading) {
             return const Center(child: CircularProgressIndicator());
           } else if (state is ProfileDetailsLoadedSuccessfully) {
+            if (!_isOnboarded) {
+              // Show registration form for new users
+              return _buildRegistrationForm();
+            }
+            // Show existing profile for onboarded users
             _updateControllers(state.profileResponse.data!);
             return _buildProfileForm();
           } else if (state is FailedToFetchProfileDetails) {
@@ -169,6 +195,71 @@ class ProfileScreenState extends State<ProfileScreen> {
             );
           }
           return const Center(child: Text('Something went wrong'));
+        },
+      ),
+    );
+  }
+
+  Widget _buildRegistrationForm() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Welcome! Please complete your profile',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildMandatoryTextField(_usernameController, 'Username*'),
+            _buildMandatoryTextField(_fullNameController, 'Full Name*'),
+            _buildMandatoryTextField(_emailController, 'Email*'),
+            _buildMandatoryTextField(_mobileController, 'Mobile No*'),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _saveChanges(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: const Text(
+                'Complete Registration',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMandatoryTextField(
+      TextEditingController controller, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'This field is required';
+          }
+          return null;
         },
       ),
     );
@@ -402,7 +493,7 @@ class ProfileScreenState extends State<ProfileScreen> {
     _isTeacher = userDetails.role == 'teacher';
   }
 
-  void _saveChanges(context) async {
+  void _saveChanges(BuildContext context) async {
     if (_formKey.currentState!.validate()) {
       // Existing form data
       Map<String, dynamic> formDataMap = {
@@ -417,6 +508,7 @@ class ProfileScreenState extends State<ProfileScreen> {
         'instagramUrl': '',
         'nearByVisible': false,
         'locationSharing': false,
+        'isOnboarded': true, // Set this to true when saving
       };
 
       // Add profile image
@@ -448,7 +540,8 @@ class ProfileScreenState extends State<ProfileScreen> {
           contentType: dio.DioMediaType('image', 'jpeg'),
         );
 
-        formData.fields.add(MapEntry('teacherId', _teacherIdController.text.trim()));
+        formData.fields
+            .add(MapEntry('teacherId', _teacherIdController.text.trim()));
         formData.files.add(MapEntry('teacherIdCard', teacherIdMultipart));
       }
 
@@ -631,13 +724,13 @@ class ProfileScreenState extends State<ProfileScreen> {
           contentType: dio.DioMediaType('image', 'jpeg'),
         );
 
-        formData.fields.add(MapEntry('teacherId', _teacherIdController.text.trim()));
+        formData.fields
+            .add(MapEntry('teacherId', _teacherIdController.text.trim()));
         formData.files.add(MapEntry('teacherIdCard', teacherIdMultipart));
       }
 
       // Send data to API
       data(formData); // Correct invocation with one argument
-
     } catch (e) {
       print("Error preparing form data: $e");
       showToast(

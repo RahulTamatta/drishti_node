@@ -66,7 +66,7 @@ class TeacherSettingScreen extends StatelessWidget {
             title: 'Admin Panel',
             description: '',
             onTap: () {
-              if (userDetails?.role == "admin"||userDetails?.role == "teacher") {
+              if (userDetails?.role == "admin") {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
