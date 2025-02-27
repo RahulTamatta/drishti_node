@@ -17,7 +17,7 @@ class NotificationService {
 
   NotificationService._internal() {
     baseUrl =
-        'http://drishtinode-production.up.railway.app'; // Development URL, adjust for production
+        'https://drishtinode-production.up.railway.app'; // Development URL, adjust for production
     _initializeNotifications();
   }
 

@@ -9,11 +9,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../providers/bottom_content_provider.dart';
 import '../../providers/course_list_provder.dart';
+import '../../utils/api_constants.dart';
 
 class courseRepo {
   static Future<DisplayCourseModel> getCourses(BuildContext context) async {
     try {
-      String apiUrl = 'http://drishtinode-production.up.railway.app';
+      String apiUrl = ApiConstants.BASE_URL;
       // DateTime? dateTime =
       //     Provider.of<BottomSheetContentProvider>(context, listen: false).date;
 
@@ -49,7 +50,7 @@ class courseRepo {
 
   static Future<DisplayCourseModel> getMapBasedCourses(
       BuildContext context) async {
-    String apiUrl = 'http://drishtinode-production.up.railway.app';
+    String apiUrl = 'https://drishtinode-production.up.railway.app';
     LatLng? position =
         Provider.of<CourseListProvider>(context, listen: false).newCo_ordinates;
 

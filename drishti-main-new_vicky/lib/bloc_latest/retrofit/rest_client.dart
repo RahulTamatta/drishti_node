@@ -2,9 +2,10 @@ import 'dart:developer';
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 import 'package:srisridrishti/models/search_user.dart';
+import '../../utils/api_constants.dart';
 part 'rest_client.g.dart';
 
-const String baseUrl1 = 'http://drishtinode-production.up.railway.app';
+const String baseUrl1 = ApiConstants.BASE_URL;
 
 @RestApi(baseUrl: baseUrl1)
 abstract class RestClient {
@@ -69,16 +70,16 @@ abstract class RestClient {
   @DELETE("/address/delete/{id}")
   Future<dynamic> deleteAddress(@Path() dynamic id);
 
-  @PATCH("http://drishtinode-production.up.railway.app/user/address/edit/{id}")
+  @PATCH("https://drishtinode-production.up.railway.app/user/address/edit/{id}")
   Future<dynamic> editAddress(@Path() dynamic id, @Body() dynamic add);
 
-  @GET("http://drishtinode-production.up.railway.app/user//address/{id}")
+  @GET("https://drishtinode-production.up.railway.app/user//address/{id}")
   Future<dynamic> getAllAddress(@Path() dynamic id);
 
-  @PUT("http://drishtinode-production.up.railway.app/user/location")
+  @PUT("https://drishtinode-production.up.railway.app/user/location")
   Future<dynamic> updateUserLocation(@Body() dynamic body, dynamic header);
 
-  @GET("http://drishtinode-production.up.railway.app/user/notifyme/{id}")
+  @GET("https://drishtinode-production.up.railway.app/user/notifyme/{id}")
   Future<dynamic> getNotificationByID(@Path() dynamic id, dynamic token);
 
   @GET("/user/search-user")
@@ -88,7 +89,7 @@ abstract class RestClient {
   });
 
   @GET(
-      "http://drishtinode-production.up.railway.app/user/search-teacher?userName={userName}")
+      "https://drishtinode-production.up.railway.app/user/search-teacher?userName={userName}")
   Future<dynamic> getSearchTeacher(@Path() dynamic userName);
 
   @GET("/{path}")

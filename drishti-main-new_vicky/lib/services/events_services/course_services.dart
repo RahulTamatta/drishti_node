@@ -7,7 +7,7 @@
 //
 // class CoursesRepository {
 //   final http.Client client;
-//   final String baseUrl = "http://drishtinode-production.up.railway.app";
+//   final String baseUrl = "https://drishtinode-production.up.railway.app";
 //
 //   CoursesRepository({http.Client? httpClient})
 //       : client = httpClient ?? http.Client();

@@ -6,12 +6,12 @@ class UserService {
   async createProfile(userData, profileImage, teacherIdCard) {
     const { userName, name, email, mobileNo, role, teacherId } = userData;
 
-    // Validate required fields
+    
     if (!userName || !name || !email || !mobileNo || !role) {
       throw new ApiError(400, 'Missing required fields');
     }
 
-    // Validate email and phone
+    
     if (!validateEmail(email)) {
       throw new ApiError(400, 'Invalid email format');
     }
@@ -20,7 +20,7 @@ class UserService {
       throw new ApiError(400, 'Invalid phone number format');
     }
 
-    // Check if username or email already exists
+    
     const existingUser = await User.findOne({
       $or: [{ userName }, { email }]
     });
@@ -29,14 +29,14 @@ class UserService {
       throw new ApiError(409, 'Username or email already exists');
     }
 
-    // Handle teacher role specific validation
+    
     if (role === 'teacher') {
       if (!teacherId || !teacherIdCard) {
         throw new ApiError(400, 'Teacher ID and ID card are required for teacher role');
       }
     }
 
-    // Create user profile
+    
     const user = new User({
       userName,
       name,
@@ -59,7 +59,7 @@ class UserService {
       throw new ApiError(404, 'User not found');
     }
 
-    // Validate email and phone if being updated
+    
     if (updateData.email && !validateEmail(updateData.email)) {
       throw new ApiError(400, 'Invalid email format');
     }
@@ -68,7 +68,7 @@ class UserService {
       throw new ApiError(400, 'Invalid phone number format');
     }
 
-    // Update allowed fields
+    
     const allowedUpdates = ['userName', 'name', 'email', 'mobileNo', 'role', 'teacherId'];
     allowedUpdates.forEach(field => {
       if (updateData[field] !== undefined) {
@@ -76,7 +76,7 @@ class UserService {
       }
     });
 
-    // Handle file updates
+    
     if (profileImage) {
       user.profileImage = profileImage.path;
     }

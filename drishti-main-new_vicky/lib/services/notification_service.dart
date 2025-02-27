@@ -18,7 +18,7 @@ class NotificationService {
 
       final response = await http.post(
         Uri.parse(
-            'http://drishtinode-production.up.railway.app/notifications/subscribe/$eventId'),
+            'https://drishtinode-production.up.railway.app/notifications/subscribe/$eventId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json'
