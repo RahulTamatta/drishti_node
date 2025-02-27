@@ -177,30 +177,15 @@ router
   .all(methodNotAllowed);
 
 router
-.route("/search-user")
-.get(async (req, res) => {
-  try {
-    const { userName } = req.query;
-    
-    if (!userName && userName !== '') {
-      return createResponse(res, httpStatus.BAD_REQUEST, "Username parameter is required");
+  .route("/search-user")
+  .get(async (req, res, next) => {
+    try {
+      // Allow empty searches
+      return searchUsers(req, res);
+    } catch (error) {
+      next(error);
     }
-
-    const users = await searchUsers(userName);
-    return createResponse(res, httpStatus.OK, "Users found", {
-      message: users.length > 0 ? "Users found" : "No users found",
-      data: users
-    });
-
-  } catch (error) {
-    console.error("Search user error:", error);
-    return createResponse(
-      res, 
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
-      error.message || "Error searching users"
-    );
-  }
-})
-.all(methodNotAllowed);
+  })
+  .all(methodNotAllowed);
 
 module.exports = router;

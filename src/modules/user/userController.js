@@ -522,36 +522,34 @@ const getSocialMediaController = async (req, res) => {
 
 const searchUsers = async (req, res) => {
   try {
-    const { query } = req.body;
+    const { userName } = req.query;
     
-    if (!query) {
-      return createResponse(
-        res, 
-        httpStatus.BAD_REQUEST, 
-        "Query is required"
-      );
-    }
+    // Allow empty searches to return recent users instead of error
+    const query = userName?.trim() 
+      ? {
+          $or: [
+            { name: { $regex: userName, $options: 'i' } },
+            { userName: { $regex: userName, $options: 'i' } },
+          ]
+        }
+      : {}; // Empty query will return recent users
     
-    const users = await User.find({
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { userName: { $regex: query, $options: 'i' } },
-      ]
-    })
-    .select('name userName profileImage')
-    .limit(10);
+    const users = await User.find(query)
+      .select('name userName profileImage')
+      .sort({ createdAt: -1 }) // Sort by most recent
+      .limit(10);
     
     return createResponse(
       res, 
       httpStatus.OK, 
-      "Users found", 
-      users
+      users.length ? "Users found" : "No users found", 
+      { data: users }
     );
   } catch (error) {
     console.error("Search users error:", error);
     return createResponse(
       res, 
-      error.status || httpStatus.INTERNAL_SERVER_ERROR,
+      httpStatus.INTERNAL_SERVER_ERROR,
       error.message || "Error searching users"
     );
   }

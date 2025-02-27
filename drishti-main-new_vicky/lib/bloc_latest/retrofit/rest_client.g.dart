@@ -344,28 +344,41 @@ class _RestClient implements RestClient {
   }
 
   @override
-  Future<dynamic> getAndSearchUser(dynamic userName) async {
+  Future<dynamic> getAndSearchUser(
+    String userName, {
+    Options? options,
+  }) async {
     final _extra = <String, dynamic>{};
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      'userName': userName,
+    };
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<dynamic>(Options(
-      method: 'GET',
-      headers: _headers,
-      extra: _extra,
-    )
-        .compose(
-          _dio.options,
-          'http://10.0.2.2:8080/user/search-user?userName=${userName}',
-          queryParameters: queryParameters,
-          data: _data,
-        )
-        .copyWith(
+    final _options = options ?? Options();
+    _options.extra?.addAll(_extra);
+    _options.headers?.addAll(_headers);
+
+    final _result = await _dio.fetch(_setStreamType<dynamic>(
+      _options
+          .copyWith(
+            method: 'GET',
+            headers: _headers,
+            extra: _extra,
+          )
+          .compose(
+            _dio.options,
+            '/user/search-user',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(
             baseUrl: _combineBaseUrls(
-          _dio.options.baseUrl,
-          baseUrl,
-        )));
-    final _result = await _dio.fetch(_options);
+              _dio.options.baseUrl,
+              baseUrl,
+            ),
+          ),
+    ));
+
     final _value = _result.data;
     return _value;
   }
@@ -489,4 +502,3 @@ class _RestClient implements RestClient {
     return Uri.parse(dioBaseUrl).resolveUri(url).toString();
   }
 }
-

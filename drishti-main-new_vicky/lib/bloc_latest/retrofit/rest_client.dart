@@ -44,7 +44,8 @@ abstract class RestClient {
 
   @MultiPart()
   @POST("/user/onBoard")
-  Future<dynamic> addProfile(@Part() FormData add, @Header("Authorization") String token);
+  Future<dynamic> addProfile(
+      @Part() FormData add, @Header("Authorization") String token);
 
   @PATCH("/user/onBoard/{id}")
   Future<dynamic> updateProfile(
@@ -81,7 +82,10 @@ abstract class RestClient {
   Future<dynamic> getNotificationByID(@Path() dynamic id, dynamic token);
 
   @GET("/user/search-user")
-  Future<dynamic> getAndSearchUser(@Query('userName') String userName);
+  Future<dynamic> getAndSearchUser(
+    @Query('userName') String userName, {
+    @DioOptions() Options? options,
+  });
 
   @GET("http://10.0.2.2:8080/user/search-teacher?userName={userName}")
   Future<dynamic> getSearchTeacher(@Path() dynamic userName);

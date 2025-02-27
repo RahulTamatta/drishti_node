@@ -375,10 +375,28 @@ class ApiProvider {
   Future<BaseModel<dynamic>> getAndSearchUser(String userName) async {
     var logger = Logger();
     try {
-      final response = await apiClient!.getAndSearchUser(userName);
+      // Always make the API call, even with empty userName
+      final response = await apiClient!.getAndSearchUser(
+        userName,
+        options: Options(
+          validateStatus: (status) => true, // Accept all status codes
+        ),
+      );
+
+      // Handle empty or error responses
+      if (response == null) {
+        return BaseModel()..data = {'data': [], 'message': 'No users found'};
+      }
+
+      // Return successful response
       return BaseModel()..data = response;
     } catch (error, stacktrace) {
       logger.e("Search user error:", error: error, stackTrace: stacktrace);
+
+      if (error is DioException && error.response?.statusCode == 400) {
+        return BaseModel()..data = {'data': [], 'message': 'No users found'};
+      }
+
       return BaseModel()
         ..setException(ServerError.withError(error: error as DioException));
     }
