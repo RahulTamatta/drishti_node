@@ -35,10 +35,29 @@ class HomeListViewItem extends StatefulWidget {
 
 class _HomeListViewItemState extends State<HomeListViewItem> {
   ApiBloc apiBloc = ApiBloc();
+  bool _isLoading = false;
+  late ValueNotifier<bool> _isNotified;
 
   @override
   void initState() {
     super.initState();
+    _isNotified =
+        ValueNotifier(widget.event!.notifyTo!.contains(widget.userID));
+  }
+
+  @override
+  void didUpdateWidget(HomeListViewItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update if the event's ID has actually changed
+    if (widget.event!.id != oldWidget.event!.id) {
+      _isNotified.value = widget.event!.notifyTo!.contains(widget.userID);
+    }
+  }
+
+  @override
+  void dispose() {
+    _isNotified.dispose();
+    super.dispose();
   }
 
   @override
@@ -298,7 +317,8 @@ class _HomeListViewItemState extends State<HomeListViewItem> {
   }
 
   Future<Widget> bloc() async {
-    String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+    String? token = await SharedPreferencesHelper.getAccessToken() ??
+        await SharedPreferencesHelper.getRefreshToken();
     print("Token: $token");
 
     dynamic headers = {
@@ -394,97 +414,129 @@ class _HomeListViewItemState extends State<HomeListViewItem> {
   }
 
   Widget _notifyButton() {
-    return InkWell(
-      onTap: () async {
-        try {
-          String? token = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
-          final response = await http.post(
-            Uri.parse(
-                'http://10.0.2.2:8080/notifications/subscribe/${widget.event!.id}'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json'
-            },
-          );
-
-          if (response.statusCode == 200) {
-            final responseBody = json.decode(response.body);
-            final bool isSubscribed =
-                responseBody['data']['isOneHourReminder'] != null;
-            print("signsit$isSubscribed");
-            // Update state inside a single setState call
-            setState(() {
-              if (isSubscribed) {
-                // Add user ID if not already present
-                if (!widget.event!.notifyTo!.contains(widget.userID)) {
-                  widget.event!.notifyTo!.add(widget.userID);
-                }
-              } else {
-                // Remove user ID if present (unsubscribe)
-                widget.event!.notifyTo!.remove(widget.userID);
-              }
-            });
-
-            // Show a snackbar confirming the action
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(isSubscribed
-                    ? 'Subscribed to notifications'
-                    : 'Unsubscribed from notifications'),
-                duration: Duration(seconds: 2),
+    return ValueListenableBuilder<bool>(
+        valueListenable: _isNotified,
+        builder: (context, isNotified, _) {
+          return InkWell(
+            onTap: _isLoading ? null : () => _handleNotificationToggle(),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isNotified ? Colors.transparent : AppColors.primaryColor,
+                border: Border.all(
+                  color: AppColors.primaryColor,
+                  width: 1.5,
+                ),
+                borderRadius: BorderRadius.circular(4),
               ),
-            );
-          } else {
-            // Handle server error
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text('Failed to toggle notifications: ${response.body}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        } catch (e) {
-          // Handle network or parsing errors
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${e.toString()}'),
-              backgroundColor: Colors.red,
+              child: _isLoading
+                  ? SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(isNotified
+                            ? AppColors.primaryColor
+                            : AppColors.white),
+                      ),
+                    )
+                  : RichText(
+                      text: TextSpan(
+                        children: [
+                          WidgetSpan(
+                            child: Icon(
+                              Icons.notifications,
+                              color: isNotified
+                                  ? AppColors.primaryColor
+                                  : AppColors.white,
+                              size: 18,
+                            ),
+                          ),
+                          WidgetSpan(child: SizedBox(width: 4)),
+                          TextSpan(
+                            text: isNotified ? "Notification On" : "Notify Me",
+                            style: GoogleFonts.poppins(
+                              textStyle: TextStyle(
+                                color: isNotified
+                                    ? AppColors.primaryColor
+                                    : AppColors.white,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
             ),
           );
-        }
-      },
-      child: Container(
-        child: RichText(
-          text: TextSpan(
-            children: [
-              WidgetSpan(
-                child: Icon(
-                  Icons.notifications,
-                  color: widget.event!.notifyTo!.contains(widget.userID)
-                      ? AppColors.primaryColor
-                      : AppColors.white,
-                ),
-              ),
-              TextSpan(
-                text: widget.event!.notifyTo!.contains(widget.userID)
-                    ? "Notification On"
-                    : "Notify Me",
-                style: GoogleFonts.poppins(
-                  textStyle: TextStyle(
-                    color: widget.event!.notifyTo!.contains(widget.userID)
-                        ? AppColors.primaryColor
-                        : AppColors.white,
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+        });
+  }
+
+  Future<void> _handleNotificationToggle() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String? token = await SharedPreferencesHelper.getAccessToken() ??
+          await SharedPreferencesHelper.getRefreshToken();
+
+      final response = await http.post(
+        Uri.parse(
+            'http://10.0.2.2:8080/notifications/subscribe/${widget.event!.id}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json'
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseBody = json.decode(response.body);
+        final bool isSubscribed =
+            responseBody['data']['isOneHourReminder'] == null;
+
+        setState(() {
+          if (isSubscribed) {
+            widget.event!.notifyTo?.add(widget.userID);
+          } else {
+            widget.event!.notifyTo?.remove(widget.userID);
+          }
+          _isNotified.value = isSubscribed;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isSubscribed
+                ? 'Subscribed to notifications'
+                : 'Unsubscribed from notifications'),
+            duration: Duration(seconds: 2),
           ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to toggle notifications: ${response.body}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
         ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   // timePicker() async {

@@ -54,7 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Obtain shared preferences.
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final accessTo = await SharedPreferencesHelper.getAccessToken() ?? await SharedPreferencesHelper.getRefreshToken();
+      final accessTo = await SharedPreferencesHelper.getAccessToken() ??
+          await SharedPreferencesHelper.getRefreshToken();
       print("Token  yo $accessTo");
       prefs.setString("UserID", userID);
     }
