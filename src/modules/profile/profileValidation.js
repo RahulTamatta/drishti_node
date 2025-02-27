@@ -3,6 +3,9 @@ const Joi = require("joi");
 // Validation schema for creating a profile
 const createProfileV = {
     body: Joi.object().keys({
+        userId: Joi.string().messages({
+            "string.base": "User ID must be a string",
+        }),
         profileImage: Joi.string().trim().uri().messages({
             "string.base": "Profile Image must be a string",
             "string.uri": "Profile Image must be a valid URL",
@@ -30,12 +33,23 @@ const createProfileV = {
             "any.required": "Mobile Number is required",
         }),
         isTeacher: Joi.boolean().default(false),
+        teacherId: Joi.string().when('isTeacher', {
+            is: true,
+            then: Joi.required(),
+            otherwise: Joi.optional()
+        }).messages({
+            "string.base": "Teacher ID must be a string",
+            "any.required": "Teacher ID is required for teachers",
+        }),
     }),
 };
 
 // Validation schema for updating a profile
 const updateProfileV = {
     body: Joi.object().keys({
+        userId: Joi.string().messages({
+            "string.base": "User ID must be a string",
+        }),
         profileImage: Joi.string().trim().uri().messages({
             "string.base": "Profile Image must be a string",
             "string.uri": "Profile Image must be a valid URL",
@@ -55,6 +69,14 @@ const updateProfileV = {
             "string.pattern.base": "Mobile Number must contain only digits",
         }),
         isTeacher: Joi.boolean(),
+        teacherId: Joi.string().when('isTeacher', {
+            is: true,
+            then: Joi.required(),
+            otherwise: Joi.optional()
+        }).messages({
+            "string.base": "Teacher ID must be a string",
+            "any.required": "Teacher ID is required for teachers",
+        }),
     }),
 };
 

@@ -68,7 +68,7 @@ class ProfileService {
   }
 
   Future<OnboardResponse?> addProfileDetails({
-    required String userName,  // Changed from username to userName
+    required String userName, // Changed from username to userName
     required String fullName,
     required String email,
     required String phoneNumber,
@@ -104,7 +104,7 @@ class ProfileService {
 
       // Add basic profile data
       formData.fields.addAll([
-        MapEntry('userName', userName),  // Using consistent field name
+        MapEntry('userName', userName), // Using consistent field name
         MapEntry('name', fullName),
         MapEntry('email', email),
         MapEntry('mobileNo', phoneNumber),
@@ -230,8 +230,9 @@ class ProfileService {
         if (jsonBody['data'] != null) {
           try {
             // Transform the data to ensure id field is present
-            final Map<String, dynamic> userData = Map<String, dynamic>.from(jsonBody['data']);
-            
+            final Map<String, dynamic> userData =
+                Map<String, dynamic>.from(jsonBody['data']);
+
             // Handle both _id and id fields
             if (userData['_id'] != null && userData['id'] == null) {
               userData['id'] = userData['_id'];

@@ -4,11 +4,12 @@ const httpStatus = require("../../common/utils/status.json");
 
 const createProfile = async (request) => {
     const userData = {
+        userId: request.user.id, // Get userId from authenticated user
         userName: request.body.userName,
         fullName: request.body.fullName,
         email: request.body.email,
         mobileNo: request.body.mobileNo,
-        isArtOfLivingTeacher: request.body.isArtOfLivingTeacher === 'true',
+        isArtOfLivingTeacher: request.body.isTeacher === true,
     };
 
     if (userData.isArtOfLivingTeacher) {

@@ -49,13 +49,27 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
     var userID = prefs.getString("UserID");
-    apiBloc.add(GetAddress(id: userID));
+    // Only make the API call if userID is not null
+    if (userID != null && userID.isNotEmpty) {
+      apiBloc.add(GetAddress(id: userID));
+    } else {
+      // Show an error message when userID is null
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showToast(
+            text: "User ID not found. Please login again.",
+            color: Colors.red,
+            context: context,
+          );
+        }
+      });
+    }
   }
 
   @override
   void initState() {
-    api();
     super.initState();
+    api();
     searchController.addListener(() {
       _onChange();
     });
@@ -265,7 +279,7 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (context) => AddAddressScreen()),
-                      );
+                      ).then((_) => api()); // Refresh addresses after returning
                     },
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text("Add New Address"),
@@ -274,7 +288,8 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              bloc()
+              // Use Flexible instead of Expanded to avoid overflow
+              Flexible(child: blocWrapper()),
             ],
           ),
         ));
@@ -286,26 +301,27 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
       var userID = prefs.getString("UserID");
       if (userID == null) {
         showToast(
-          text: "User ID not found. Please login again.",
-          color: Colors.red,
-          context: context
-        );
+            text: "User ID not found. Please login again.",
+            color: Colors.red,
+            context: context);
         return;
       }
 
       Position position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.high));
 
-      List<Placemark> addresses = await placemarkFromCoordinates(position.latitude, position.longitude);
+      List<Placemark> addresses =
+          await placemarkFromCoordinates(position.latitude, position.longitude);
       var first = addresses.first;
 
       // Ensure we have a valid postal code
       if (first.postalCode == null || first.postalCode!.isEmpty) {
         showToast(
-          text: "Could not determine PIN code for this location. Please select a different location.",
-          color: Colors.red,
-          context: context
-        );
+            text:
+                "Could not determine PIN code for this location. Please select a different location.",
+            color: Colors.red,
+            context: context);
         return;
       }
 
@@ -323,12 +339,10 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
           .join(', ');
 
       // Update the address provider
-      final AddressProvider addressProvider = Provider.of<AddressProvider>(context, listen: false);
+      final AddressProvider addressProvider =
+          Provider.of<AddressProvider>(context, listen: false);
       addressProvider.updatePosition(
-        lat: position.latitude,
-        long: position.longitude,
-        address: addresses
-      );
+          lat: position.latitude, long: position.longitude, address: addresses);
 
       // Create the address object
       final Map<String, dynamic> addressData = {
@@ -360,10 +374,9 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
       });
     } catch (e) {
       showToast(
-        text: "Error getting location: ${e.toString()}",
-        color: Colors.red,
-        context: context
-      );
+          text: "Error getting location: ${e.toString()}",
+          color: Colors.red,
+          context: context);
     }
   }
 
@@ -434,77 +447,79 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
   }
 
   addressLayout(Address address) {
-    return Expanded(
-      child: ListView.builder(
-        itemCount: address.data.length,
-        itemBuilder: (context, index) {
-          return Card(
-            child: ListTile(
-              title: Text(address.data[index].title.toString()),
-              subtitle: Text(address.data[index].address.toString()),
-              onTap: () {
-                // Return the selected address data to the previous screen
-                final locationData = {
-                  'formattedAddress': address.data[index].address,
-                  'street': address.data[index].address,
-                  'city': address.data[index].city,
-                  'state': address.data[index].state,
-                  'country': address.data[index].country,
-                  'postalCode': address.data[index].pin,
-                  'coordinates': {
-                    'lat': address.data[index].latlong?.coordinates?[1] ?? 0.0,
-                    'lng': address.data[index].latlong?.coordinates?[0] ?? 0.0
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: address.data.length,
+      itemBuilder: (context, index) {
+        return Card(
+          child: ListTile(
+            title: Text(address.data[index].title.toString()),
+            subtitle: Text(address.data[index].address.toString()),
+            onTap: () {
+              // Return the selected address data to the previous screen
+              final locationData = {
+                'formattedAddress': address.data[index].address,
+                'street': address.data[index].address,
+                'city': address.data[index].city,
+                'state': address.data[index].state,
+                'country': address.data[index].country,
+                'postalCode': address.data[index].pin,
+                'coordinates': {
+                  'lat': address.data[index].latlong?.coordinates?[1] ?? 0.0,
+                  'lng': address.data[index].latlong?.coordinates?[0] ?? 0.0
+                },
+                'fullAddress': address.data[index]
+              };
+              Navigator.pop(context, locationData);
+            },
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.share),
+                  onPressed: () {
+                    // Handle share functionality
                   },
-                  'fullAddress': address.data[index]
-                };
-                Navigator.pop(context, locationData);
-              },
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.share),
-                    onPressed: () {
-                      // Handle share functionality
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit),
-                    onPressed: () async {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => AddAddressScreen(
-                                  addressData: address.data[index])));
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () async {
-                      // Handle delete functionality
-
-//object id
-                      apiBloc.add(DeleteAddress(id: address.data[index].id));
-                    },
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () async {
+                    Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => AddAddressScreen(
+                                    addressData: address.data[index])))
+                        .then((_) => api()); // Refresh after editing
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () {
+                    // Handle delete functionality
+                    apiBloc.add(DeleteAddress(id: address.data[index].id));
+                  },
+                ),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
   Widget bloc() {
+    return blocWrapper();
+  }
+
+  Widget blocWrapper() {
     return BlocProvider(
       create: (_) => apiBloc,
       child: BlocListener<ApiBloc, BlocState>(
         listener: (context, state) {
           if (state is Error && state.message != null) {
             showToast(
-                text:
-                    state.message ?? 'Unknown error', // Provide a default value
+                text: state.message ?? 'Unknown error',
                 color: Colors.red,
                 context: context);
           }
@@ -514,30 +529,49 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
             if (state is Initial) {
               return buildLoading();
             } else if (state is Loading) {
-              return Container(child: buildLoading());
+              return buildLoading();
             } else if (state is Loaded) {
               dynamic add = state.data;
-              print(add);
 
+              // Handle messages from the API
               if (add['message'] == 'address.ADDRESS_CREATED') {
-                Get.back();
+                // Refresh the address list after a new address is created
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) api();
+                });
+                return Container();
               }
 
               if (add['message'] == 'address.ADDRESS_DELETED') {
+                // Refresh the list after deletion
                 api();
+                return buildLoading();
               }
 
               if (add['message'] == 'address.ADDRESSES_FOUND') {
                 Address address = addressFromJson(add);
 
+                // Check if there are addresses
+                if (address.data.isEmpty) {
+                  return const Center(
+                    child: Text("No saved addresses found"),
+                  );
+                }
+
                 return addressLayout(address);
               } else {
-                return Container();
+                return const Center(
+                  child: Text("No saved addresses found"),
+                );
               }
             } else if (state is Error) {
-              return Container();
+              return Center(
+                child: Text("Error: ${state.message ?? 'Unknown error'}"),
+              );
             } else {
-              return Container();
+              return const Center(
+                child: Text("No saved addresses available"),
+              );
             }
           },
         ),
@@ -545,7 +579,8 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
     );
   }
 
-  void showLocationConfirmationDialog(BuildContext context, Map<String, dynamic> locationData) {
+  void showLocationConfirmationDialog(
+      BuildContext context, Map<String, dynamic> locationData) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -579,6 +614,13 @@ class SelectLocationScreenState extends State<SelectLocationScreen> {
           ],
         );
       },
+    );
+  }
+
+  // Add a proper loading widget
+  Widget buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(),
     );
   }
 

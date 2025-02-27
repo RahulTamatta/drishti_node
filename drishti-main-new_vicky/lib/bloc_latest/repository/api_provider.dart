@@ -51,153 +51,159 @@ class ApiProvider {
     }
     return BaseModel()..data = response;
   }
-Future<BaseModel> addProfile(FormData formData) async {
-  try {
-    print('=== Adding Profile START ===');
-    
-    // Log all fields in the form data
-    print('Form Data Fields:');
-    for (var field in formData.fields) {
-      print('  ${field.key}: ${field.value}');
-    }
 
-    // Log all files in the form data
-    print('Form Data Files:');
-    for (var file in formData.files) {
-      print('  ${file.key}: ${file.value.filename}');
-    }
+  Future<BaseModel> addProfile(FormData formData) async {
+    try {
+      print('=== Adding Profile START ===');
 
-    // Check if 'userName' is present and not empty
-    bool hasUserName = formData.fields.any((field) => field.key == 'userName' && field.value.isNotEmpty);
-    if (!hasUserName) {
-      throw DioException(
-        requestOptions: RequestOptions(path: ''),
-        error: 'userName is required and cannot be empty',
-      );
-    } else {
-      print("'userName' is present in the payload.");
-      String userName = formData.fields.firstWhere((field) => field.key == 'userName', orElse: () => MapEntry('', '')).value;
-      print("'userName' value: $userName");
-    }
+      // Log all fields in the form data
+      print('Form Data Fields:');
+      for (var field in formData.fields) {
+        print('  ${field.key}: ${field.value}');
+      }
 
-    // Get token and validate
-    final token = await SharedPreferencesHelper.getAccessToken();
-    if (token == null || token.isEmpty) {
-      throw DioException(
-        requestOptions: RequestOptions(path: ''),
-        error: 'Authentication token is missing',
-      );
-    }
-    print('Authorization Token: $token');
+      // Log all files in the form data
+      print('Form Data Files:');
+      for (var file in formData.files) {
+        print('  ${file.key}: ${file.value.filename}');
+      }
 
-    // Validate required fields before making request
-    bool hasRequiredFields = formData.fields.any(
-            (field) => field.key == 'userName' && field.value.isNotEmpty) &&
-        formData.fields
-            .any((field) => field.key == 'name' && field.value.isNotEmpty);
-
-    if (!hasRequiredFields) {
-      throw DioException(
-        requestOptions: RequestOptions(path: ''),
-        error: 'userName and name are required fields',
-      );
-    }
-
-    // Check if teacher role has required fields
-    bool isTeacher = formData.fields
-        .any((field) => field.key == 'role' && field.value == 'teacher');
-
-    if (isTeacher) {
-      bool hasTeacherId = formData.fields
-          .any((field) => field.key == 'teacherId' && field.value.isNotEmpty);
-      bool hasTeacherIdCard =
-          formData.files.any((file) => file.key == 'teacherIdCard');
-
-      if (!hasTeacherId || !hasTeacherIdCard) {
+      // Check if 'userName' is present and not empty
+      bool hasUserName = formData.fields
+          .any((field) => field.key == 'userName' && field.value.isNotEmpty);
+      if (!hasUserName) {
         throw DioException(
           requestOptions: RequestOptions(path: ''),
-          error: 'Teacher ID and ID Card are required for teacher role',
+          error: 'userName is required and cannot be empty',
+        );
+      } else {
+        print("'userName' is present in the payload.");
+        String userName = formData.fields
+            .firstWhere((field) => field.key == 'userName',
+                orElse: () => MapEntry('', ''))
+            .value;
+        print("'userName' value: $userName");
+      }
+
+      // Get token and validate
+      final token = await SharedPreferencesHelper.getAccessToken();
+      if (token == null || token.isEmpty) {
+        throw DioException(
+          requestOptions: RequestOptions(path: ''),
+          error: 'Authentication token is missing',
         );
       }
-    }
+      print('Authorization Token: $token');
 
-    // Create proper headers with correct content type
-    final headers = {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/json', // Remove 'Content-Type' from here
-    };
+      // Validate required fields before making request
+      bool hasRequiredFields = formData.fields.any(
+              (field) => field.key == 'userName' && field.value.isNotEmpty) &&
+          formData.fields
+              .any((field) => field.key == 'name' && field.value.isNotEmpty);
 
-    // Reconstruct form data to ensure proper formatting
-    final newFormData = FormData();
+      if (!hasRequiredFields) {
+        throw DioException(
+          requestOptions: RequestOptions(path: ''),
+          error: 'userName and name are required fields',
+        );
+      }
 
-    // Add text fields first
-    for (var field in formData.fields) {
-      newFormData.fields.add(MapEntry(field.key, field.value));
-    }
+      // Check if teacher role has required fields
+      bool isTeacher = formData.fields
+          .any((field) => field.key == 'role' && field.value == 'teacher');
 
-    // Add files
-    for (var file in formData.files) {
-      newFormData.files.add(MapEntry(file.key, file.value));
-    }
+      if (isTeacher) {
+        bool hasTeacherId = formData.fields
+            .any((field) => field.key == 'teacherId' && field.value.isNotEmpty);
+        bool hasTeacherIdCard =
+            formData.files.any((file) => file.key == 'teacherIdCard');
 
-    // Log the final form data
-    print('=== Final Form Data ===');
-    print('Fields:');
-    for (var field in newFormData.fields) {
-      print('  ${field.key}: ${field.value}');
-    }
-    print('Files:');
-    for (var file in newFormData.files) {
-      print('  ${file.key}: ${file.value.filename}');
-    }
+        if (!hasTeacherId || !hasTeacherIdCard) {
+          throw DioException(
+            requestOptions: RequestOptions(path: ''),
+            error: 'Teacher ID and ID Card are required for teacher role',
+          );
+        }
+      }
 
-    // Make the API request
-    final response = await _dio?.post(
-      '/user/onBoard',
-      data: newFormData,
-      options: Options(
-        headers: headers,
-        followRedirects: false,
-        validateStatus: (status) => status! < 500,
-      ),
-    );
+      // Create proper headers with correct content type
+      final headers = {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json', // Remove 'Content-Type' from here
+      };
 
-    print('Response Status: ${response?.statusCode}');
-    print('Response Data: ${response?.data}');
+      // Reconstruct form data to ensure proper formatting
+      final newFormData = FormData();
 
-    // Handle different response status codes
-    if (response?.statusCode == 422) {
-      throw DioException(
-        requestOptions: RequestOptions(path: ''),
-        error: response?.data['message'] ?? 'Validation failed',
+      // Add text fields first
+      for (var field in formData.fields) {
+        newFormData.fields.add(MapEntry(field.key, field.value));
+      }
+
+      // Add files
+      for (var file in formData.files) {
+        newFormData.files.add(MapEntry(file.key, file.value));
+      }
+
+      // Log the final form data
+      print('=== Final Form Data ===');
+      print('Fields:');
+      for (var field in newFormData.fields) {
+        print('  ${field.key}: ${field.value}');
+      }
+      print('Files:');
+      for (var file in newFormData.files) {
+        print('  ${file.key}: ${file.value.filename}');
+      }
+
+      // Make the API request
+      final response = await _dio?.post(
+        '/user/onBoard',
+        data: newFormData,
+        options: Options(
+          headers: headers,
+          followRedirects: false,
+          validateStatus: (status) => status! < 500,
+        ),
       );
+
+      print('Response Status: ${response?.statusCode}');
+      print('Response Data: ${response?.data}');
+
+      // Handle different response status codes
+      if (response?.statusCode == 422) {
+        throw DioException(
+          requestOptions: RequestOptions(path: ''),
+          error: response?.data['message'] ?? 'Validation failed',
+        );
+      }
+
+      if (response?.statusCode != 200) {
+        throw DioException(
+          requestOptions: RequestOptions(path: ''),
+          error: response?.data['message'] ?? 'Request failed',
+        );
+      }
+
+      return BaseModel()..data = response?.data;
+    } catch (error) {
+      print('=== Add Profile ERROR ===');
+      print('Error Type: ${error.runtimeType}');
+      print('Error Details: $error');
+
+      return BaseModel()
+        ..setException(ServerError.withError(
+          error: error is DioException
+              ? error
+              : DioException(
+                  requestOptions: RequestOptions(path: ''),
+                  error: error,
+                ),
+        ));
     }
-
-    if (response?.statusCode != 200) {
-      throw DioException(
-        requestOptions: RequestOptions(path: ''),
-        error: response?.data['message'] ?? 'Request failed',
-      );
-    }
-
-    return BaseModel()..data = response?.data;
-  } catch (error) {
-    print('=== Add Profile ERROR ===');
-    print('Error Type: ${error.runtimeType}');
-    print('Error Details: $error');
-
-    return BaseModel()
-      ..setException(ServerError.withError(
-        error: error is DioException
-            ? error
-            : DioException(
-                requestOptions: RequestOptions(path: ''),
-                error: error,
-              ),
-      ));
   }
-}
- Future<BaseModel> updateProfile(
+
+  Future<BaseModel> updateProfile(
       FormData add, Map<String, dynamic> header, String id) async {
     var logger = Logger();
     try {
@@ -346,9 +352,20 @@ Future<BaseModel> addProfile(FormData formData) async {
     var logger = Logger();
     dynamic response;
     try {
+      // Validate user ID
+      if (id == null || (id is String && id.isEmpty)) {
+        return BaseModel()
+          ..setException(ServerError.withError(
+              error: DioException(
+            requestOptions: RequestOptions(path: ''),
+            error: 'User ID is null or empty',
+            type: DioExceptionType.badResponse,
+          )));
+      }
+
       response = await apiClient!.getAllAddress(id);
     } catch (error, stacktrace) {
-      logger.f("Exception occured:", error: error, stackTrace: stacktrace);
+      logger.f("Exception occurred:", error: error, stackTrace: stacktrace);
       return BaseModel()
         ..setException(ServerError.withError(error: error as DioException));
     }

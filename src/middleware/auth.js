@@ -1,69 +1,38 @@
 const jwt = require('jsonwebtoken');
+const appError = require('../common/utils/appError');
+const httpStatus = require('../common/utils/status.json');
 const config = require('../config/config');
 const User = require('../models/user');
 
-const auth = async (req, res, next) => {
+const verifyToken = (req, res, next) => {
   try {
-    const authHeader = req.header('Authorization');
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        message: 'No authentication token provided',
-        code: 'NO_TOKEN'
-      });
+    // Get token from request header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next(new appError(httpStatus.UNAUTHORIZED, 'No token provided'));
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token format',
-        code: 'INVALID_TOKEN_FORMAT'
-      });
-    }
-
-    try {
-      const decoded = jwt.verify(token, config.jwtSecret);
+    const token = authHeader.split(' ')[1];
+    
+    // Verify token
+    jwt.verify(token, config.jwtSecret, (err, decoded) => {
+      if (err) {
+        return next(new appError(httpStatus.UNAUTHORIZED, 'Invalid token'));
+      }
       
-      // Verify token type and expiration
-      if (decoded.type !== 'access') {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid token type',
-          code: 'INVALID_TOKEN_TYPE'
-        });
-      }
-
-      // Find user and attach to request
-      const user = await User.findById(decoded.userId);
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: 'User not found',
-          code: 'USER_NOT_FOUND'
-        });
-      }
-
-      req.user = user;
+      // Add user info to the request object
+      req.user = {
+        id: decoded.userId,
+        email: decoded.email,
+      };
+      
       next();
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return res.status(401).json({ 
-          success: false,
-          message: 'Token expired',
-          code: 'TOKEN_EXPIRED'
-        });
-      }
-      throw err;
-    }
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Authentication failed',
-      code: 'AUTH_ERROR'
     });
+  } catch (error) {
+    return next(new appError(httpStatus.INTERNAL_SERVER_ERROR, error.message));
   }
 };
 
-module.exports = auth;
+module.exports = {
+  verifyToken
+};

@@ -1,8 +1,11 @@
 const mongoose = require("mongoose");
 
 const profileSchema = new mongoose.Schema({
-    userName:
-    {
+    userId: {
+        type: String,
+        required: true
+    },
+    userName: {
         type: String,
         required: true
     },
@@ -11,8 +14,8 @@ const profileSchema = new mongoose.Schema({
         required: true
     },
     email: {
-        type: String, required: true
-
+        type: String, 
+        required: true
     },
     mobileNo: {
         type: String,
@@ -32,9 +35,7 @@ const profileSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
-
 });
-
 
 const Profile = mongoose.model("Profile", profileSchema);
 module.exports = Profile;
