@@ -46,7 +46,8 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<OnboardResponse> addProfile(
       {required Map<String, dynamic> profileData}) async {
     final onboardResponse = await _profileService.addProfileDetails(
-      userName: profileData['userName'] as String,  // Changed from username to userName
+      userName: profileData['userName']
+          as String, // Changed from username to userName
       fullName: profileData['name'] as String,
       email: profileData['email'] as String,
       phoneNumber: profileData['mobileNo'] as String,
@@ -126,7 +127,8 @@ void main() async {
   Bloc.observer = AppBlocObserver();
 
   final profileService = ProfileService();
-  final profileRepository = ProfileRepositoryImpl(profileService: profileService);
+  final profileRepository =
+      ProfileRepositoryImpl(profileService: profileService);
   final authRepository = AuthRepositoryImp();
   final eventsRepository = AllEventsRepositoryImpl();
 
@@ -136,28 +138,29 @@ void main() async {
       ChangeNotifierProvider(create: (_) => CourseSelectionProvider()),
       ChangeNotifierProvider(create: (_) => LocationProvider()),
       ChangeNotifierProvider(create: (_) => AddressProvider()),
-      ChangeNotifierProvider(create: (_) => CreateEventProvider(CreateEventModel(
-        mode: null,
-        aol: [],
-        title: [],
-        recurring: false,
-        durationFrom: null,
-        durationTo: null,
-        timeOffset: null,
-        meetingLink: null,
-        phoneNumber: [],
-        address: [],
-        description: null,
-        registrationLink: null,
-        coordinates: [],
-        teachers: [],
-        date: EventDateTime(from: null, to: null),
-      ))),
+      ChangeNotifierProvider(
+          create: (_) => CreateEventProvider(CreateEventModel(
+                mode: null,
+                aol: [],
+                title: [],
+                recurring: false,
+                durationFrom: null,
+                durationTo: null,
+                timeOffset: null,
+                meetingLink: null,
+                phoneNumber: null,
+                address: [],
+                description: null,
+                registrationLink: null,
+                coordinates: [],
+                teachers: [],
+                date: EventDateTime(from: null, to: null),
+              ))),
       ChangeNotifierProvider(create: (_) => CourseListProvider()),
       ChangeNotifierProvider(create: (_) => BottomSheetContentProvider()),
       ChangeNotifierProvider(create: (_) => HomeProvider()),
       ChangeNotifierProvider(create: (_) => TeacherProvider(TData())),
-      
+
       // BlocProviders
       BlocProvider(create: (_) => UserLocationBloc()),
       BlocProvider(create: (_) => ProfileDetailsBloc(profileRepository)),

@@ -34,7 +34,7 @@ class TimeDropdownState extends State<TimeDropdown> {
 
   List<String> _generateTimeIntervals() {
     List<String> intervals = [];
-    for (int hour = 0; hour < 12; hour++) {
+    for (int hour = 1; hour <= 12; hour++) {
       for (int minute = 0; minute < 60; minute += 15) {
         String time =
             "${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}";
@@ -42,6 +42,10 @@ class TimeDropdownState extends State<TimeDropdown> {
       }
     }
     return intervals;
+  }
+
+  String getFormattedTime(String time, String period) {
+    return "$time$period";
   }
 
   @override
@@ -82,8 +86,8 @@ class TimeDropdownState extends State<TimeDropdown> {
                   _selectedTime = newValue;
                 });
 
-                createEventProvider.createEventModel.durationFrom =
-                    _selectedTime.toString();
+                createEventProvider.updateDurationFrom(getFormattedTime(
+                    _selectedTime.toString(), _selectedTitle ?? 'AM'));
               },
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.only(left: 14),
@@ -143,8 +147,10 @@ class TimeDropdownState extends State<TimeDropdown> {
                   _selectedTitle = newValue;
                 });
 
-                createEventProvider.createEventModel.timeTitle =
-                    _selectedTitle.toString();
+                if (_selectedTime != null) {
+                  createEventProvider.updateDurationFrom(getFormattedTime(
+                      _selectedTime.toString(), newValue ?? 'AM'));
+                }
               },
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.all(7),
@@ -212,7 +218,7 @@ class TimeDropdownState1 extends State<TimeDropdown1> {
 
   List<String> _generateTimeIntervals() {
     List<String> intervals = [];
-    for (int hour = 0; hour < 12; hour++) {
+    for (int hour = 1; hour <= 12; hour++) {
       for (int minute = 0; minute < 60; minute += 15) {
         String time =
             "${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}";
@@ -220,6 +226,10 @@ class TimeDropdownState1 extends State<TimeDropdown1> {
       }
     }
     return intervals;
+  }
+
+  String getFormattedTime(String time, String period) {
+    return "$time$period";
   }
 
   @override
@@ -260,8 +270,8 @@ class TimeDropdownState1 extends State<TimeDropdown1> {
                     _selectedTime = newValue;
                   });
 
-                  createEventProvider.createEventModel.durationTo =
-                      _selectedTime.toString();
+                  createEventProvider.updateDurationTo(getFormattedTime(
+                      _selectedTime.toString(), _selectedTitle ?? 'AM'));
                 },
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.all(7),
@@ -320,8 +330,10 @@ class TimeDropdownState1 extends State<TimeDropdown1> {
                     _selectedTitle = newValue;
                   });
 
-                  createEventProvider.createEventModel.timeTitle =
-                      _selectedTitle.toString();
+                  if (_selectedTime != null) {
+                    createEventProvider.updateDurationTo(getFormattedTime(
+                        _selectedTime.toString(), newValue ?? 'AM'));
+                  }
                 },
                 decoration: InputDecoration(
                   contentPadding: const EdgeInsets.all(7),
