@@ -3,12 +3,13 @@ class ApiConfig {
 
   // Local development URL
   static const String localBaseUrl =
-      'http://10.0.2.2:8080'; // For Android Emulator
+      'http://drishtinode-production.up.railway.app'; // For Android Emulator
   static const String localIosUrl =
       'http://localhost:3000'; // For iOS Simulator
 
   // Production URL (Railway)
-  static const String productionBaseUrl = 'http://10.0.2.2:8080';
+  static const String productionBaseUrl =
+      'http://drishtinode-production.up.railway.app';
 
   // Get the appropriate base URL based on environment and platform
   static String getBaseUrl(bool isIOS) {

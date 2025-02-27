@@ -17,7 +17,8 @@ class NotificationService {
           await SharedPreferencesHelper.getRefreshToken();
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:8080/notifications/subscribe/$eventId'),
+        Uri.parse(
+            'http://drishtinode-production.up.railway.app/notifications/subscribe/$eventId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json'

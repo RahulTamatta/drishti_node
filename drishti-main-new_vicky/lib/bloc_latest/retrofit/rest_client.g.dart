@@ -16,8 +16,8 @@ class _RestClient implements RestClient {
   }) {
     baseUrl ??=
         // "https://rest-rosy.vercel.app";
-        // "http://10.0.2.2:8080";
-        'http://10.0.2.2:8080';
+        // "http://drishtinode-production.up.railway.app";
+        'http://drishtinode-production.up.railway.app';
   }
 
   final Dio _dio;
@@ -109,7 +109,7 @@ class _RestClient implements RestClient {
     )
         .compose(
           _dio.options,
-          'http://10.0.2.2:8080/notifications/${id}',
+          'http://drishtinode-production.up.railway.app/notifications/${id}',
           queryParameters: queryParameters,
           data: _data,
         )
@@ -329,7 +329,7 @@ class _RestClient implements RestClient {
     )
         .compose(
           _dio.options,
-          'http://10.0.2.2:8080/notifications/${id}',
+          'http://drishtinode-production.up.railway.app/notifications/${id}',
           queryParameters: queryParameters,
           data: _data,
         )
@@ -396,7 +396,7 @@ class _RestClient implements RestClient {
     )
         .compose(
           _dio.options,
-          'http://10.0.2.2:8080/user/search-teacher?userName=${userName}',
+          'http://drishtinode-production.up.railway.app/user/search-teacher?userName=${userName}',
           queryParameters: queryParameters,
           data: _data,
         )

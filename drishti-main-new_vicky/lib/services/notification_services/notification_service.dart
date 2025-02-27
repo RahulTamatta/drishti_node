@@ -16,7 +16,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   NotificationService._internal() {
-    baseUrl = 'http://10.0.2.2:8080'; // Development URL, adjust for production
+    baseUrl =
+        'http://drishtinode-production.up.railway.app'; // Development URL, adjust for production
     _initializeNotifications();
   }
 

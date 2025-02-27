@@ -9,7 +9,7 @@ class ApiService {
 
   ApiService(this._prefs) {
     _dio = Dio(BaseOptions(
-      baseUrl: 'http://10.0.2.2:8080',
+      baseUrl: 'http://drishtinode-production.up.railway.app',
       connectTimeout: Duration(seconds: 30),
       receiveTimeout: Duration(seconds: 30),
     ));

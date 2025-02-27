@@ -42,7 +42,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
       print("Sending HTTP PATCH request...");
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:8080/notifications/$userID'),
+        Uri.parse(
+            'http://drishtinode-production.up.railway.app/notifications/$userID'),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json',

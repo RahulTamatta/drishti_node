@@ -486,7 +486,7 @@ class _HomeListViewItemState extends State<HomeListViewItem> {
 
       final response = await http.post(
         Uri.parse(
-            'http://10.0.2.2:8080/notifications/subscribe/${widget.event!.id}'),
+            'http://drishtinode-production.up.railway.app/notifications/subscribe/${widget.event!.id}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json'

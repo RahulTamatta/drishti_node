@@ -24,7 +24,7 @@ class ApiProvider {
   ApiProvider._internal() {
     if (_dio == null) {
       _dio = Dio(BaseOptions(
-        baseUrl: 'http://10.0.2.2:8080',
+        baseUrl: 'http://drishtinode-production.up.railway.app',
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
       ));
