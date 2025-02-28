@@ -1,2 +1,0 @@
-/Users/rahultamatta/Documents/GitHub/drishti_node/drishti-main-new_vicky/android/app/.cxx/RelWithDebInfo/3c2g2a6z/x86_64/CMakeFiles/edit_cache.dir
-/Users/rahultamatta/Documents/GitHub/drishti_node/drishti-main-new_vicky/android/app/.cxx/RelWithDebInfo/3c2g2a6z/x86_64/CMakeFiles/rebuild_cache.dir

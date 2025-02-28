@@ -12,41 +12,53 @@ abstract class RestClient {
   factory RestClient({String? baseUrl, required Dio dio}) {
     Dio dio = Dio();
     dio.options = BaseOptions(
-        receiveTimeout: const Duration(seconds: 1000),
-        connectTimeout: const Duration(seconds: 1000),
-        baseUrl: baseUrl1);
+      receiveTimeout: const Duration(seconds: 1000),
+      connectTimeout: const Duration(seconds: 1000),
+      baseUrl: baseUrl1,
+    );
     dio.options.headers["Content-Type"] = "application/json";
 
     // intercptors are use to display api response body and request body
-    dio.interceptors.add(LogInterceptor(
+    dio.interceptors.add(
+      LogInterceptor(
         request: true,
         requestBody: true,
         requestHeader: true,
         responseBody: true,
-        responseHeader: true));
+        responseHeader: true,
+      ),
+    );
 
     // InterceptorsWrapper makes it possible to observe or intercept everything that is API request.
-    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      // Set proper content type for multipart requests
-      if (options.data is FormData) {
-        options.headers["Content-Type"] = "multipart/form-data";
-      } else {
-        options.headers["Content-Type"] = "application/json";
-      }
-      return handler.next(options);
-    }, onResponse: (response, handler) {
-      log("interceptor${response.data}");
-      return handler.next(response);
-    }, onError: (DioException e, handler) {
-      return handler.next(e);
-    }));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          // Set proper content type for multipart requests
+          if (options.data is FormData) {
+            options.headers["Content-Type"] = "multipart/form-data";
+          } else {
+            options.headers["Content-Type"] = "application/json";
+          }
+          return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          log("interceptor${response.data}");
+          return handler.next(response);
+        },
+        onError: (DioException e, handler) {
+          return handler.next(e);
+        },
+      ),
+    );
     return _RestClient(dio, baseUrl: baseUrl);
   }
 
   @MultiPart()
   @POST("/user/onBoard")
   Future<dynamic> addProfile(
-      @Part() FormData add, @Header("Authorization") String token);
+    @Part() FormData add,
+    @Header("Authorization") String token,
+  );
 
   @PATCH("/user/onBoard/{id}")
   Future<dynamic> updateProfile(
@@ -89,12 +101,17 @@ abstract class RestClient {
   });
 
   @GET(
-      "https://drishtinode-production.up.railway.app/user/search-teacher?userName={userName}")
+    "https://drishtinode-production.up.railway.app/user/search-teacher?userName={userName}",
+  )
   Future<dynamic> getSearchTeacher(@Path() dynamic userName);
 
   @GET("/{path}")
   Future<dynamic> getApi(
-      @Body() dynamic add, dynamic header, @Path() dynamic path, dynamic type);
+    @Body() dynamic add,
+    dynamic header,
+    @Path() dynamic path,
+    dynamic type,
+  );
 
   // @POST("/user/nearby")
   // Future<dynamic> getNearbyUsers(@Body() Map<String, dynamic> location);

@@ -29,27 +29,33 @@ class courseRepo {
       }
       final Map<String, dynamic> requestBody = {
         "lat": latitude,
-        "long": longitude
+        "long": longitude,
       };
       final String rawBody = jsonEncode(requestBody);
-      Response res = await http.post(Uri.parse('$apiUrl/event/all-events'),
-          headers: {'Authorization': ""}, body: rawBody);
+      Response res = await http.post(
+        Uri.parse('$apiUrl/event/all-events'),
+        headers: {'Authorization': ""},
+        body: rawBody,
+      );
       if (res.statusCode != 200) {
         throw Exception(
-            "API request failed with status code ${res.statusCode}");
+          "API request failed with status code ${res.statusCode}",
+        );
       }
-      DisplayCourseModel data =
-          DisplayCourseModel.fromJson(jsonDecode(res.body));
+      DisplayCourseModel data = DisplayCourseModel.fromJson(
+        jsonDecode(res.body),
+      );
       return data;
     } catch (e) {
       rethrow; // rethrow the exception to propagate it further if needed
     }
   }
 
-// below method will be used to fetch courses on the basis of map visible area coordinates;
+  // below method will be used to fetch courses on the basis of map visible area coordinates;
 
   static Future<DisplayCourseModel> getMapBasedCourses(
-      BuildContext context) async {
+    BuildContext context,
+  ) async {
     String apiUrl = 'https://drishtinode-production.up.railway.app';
     LatLng? position =
         Provider.of<CourseListProvider>(context, listen: false).newCo_ordinates;
@@ -60,13 +66,11 @@ class courseRepo {
 
     Response res = await http.post(
       Uri.parse('$apiUrl/event/all-events'),
-      headers: {
-        'Authorization': '',
-      },
+      headers: {'Authorization': ''},
       body: jsonEncode({
         "date": date,
         "lat": position!.latitude.toString(),
-        "lng": position.longitude.toString()
+        "lng": position.longitude.toString(),
       }),
     );
     DisplayCourseModel data = DisplayCourseModel.fromJson(jsonDecode(res.body));

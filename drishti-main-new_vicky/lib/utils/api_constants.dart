@@ -12,7 +12,7 @@ class ApiConstants {
   static String get user => "$baseUrl/user";
   static String get userUpdate => "$baseUrl/user/update";
 
-// https://drishtinode-production.up.railway.app/course/get
+  // https://drishtinode-production.up.railway.app/course/get
   static String get createEvent => "$baseUrl/event";
   static String get notifyMe => "$baseUrl/event/notifyme";
 }
